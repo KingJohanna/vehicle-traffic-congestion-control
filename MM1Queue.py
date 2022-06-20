@@ -2,7 +2,7 @@ from scipy.stats import poisson
 from scipy.stats import expon
 import random
 
-class Queue:
+class MM1Queue:
     def __init__(self):
         """
         queue_length : int
@@ -36,12 +36,14 @@ class Queue:
         """
         self.queue_length += 1
         
-    def remove(self) -> None:
+    def remove(self) -> bool:
         """
         Removes a vehicle from the queue.
         """
         if self.queue_length > 0:
             self.queue_length -= 1
+            return True
+        return False
             
 class ConnectedQueue:
     def __init__(self):
@@ -69,17 +71,19 @@ class ConnectedQueue:
         """
         self.queue_length += 1
         
-    def remove(self) -> None:
+    def remove(self) -> bool:
         """
         Removes a vehicle from the queue.
         """
         if self.queue_length > 0:
             self.queue_length -= 1
+            return True
+        return False
             
 class MM1QueueSimulator:
     def __init__(self):
         """
-        queue : Queue
+        queue : MM1Queue
             The internal Queue instance.
         time : float
             The current simulation time [s].
@@ -102,7 +106,7 @@ class MM1QueueSimulator:
         next_queue_timestamps : list(float)
             Timestamps of each vehicle arriving to next_queue.
         """
-        self.queue = Queue()
+        self.queue = MM1Queue()
         self.time = 0
         self.time_since_arrival = 0
         self.time_served = 0
@@ -190,11 +194,13 @@ class MM1QueueSimulator:
             self.arrivals += [self.arrivals[-1]]
 
         if random.random() < self.departure_probability(saturation_rate=saturation_rate):
-            self.queue.remove()
-            self.time_served = 0
-            self.departures += [self.departures[-1]+1]
-            if self.next_queue != None:
-                self.next_queue_timestamps += [self.time+self.next_queue_distance]
+            if self.queue.remove():
+                self.time_served = 0
+                self.departures += [self.departures[-1]+1]
+                if self.next_queue != None:
+                    self.next_queue_timestamps += [self.time+self.next_queue_distance]
+            else:
+                self.departures += [self.departures[-1]]
         else:
             self.departures += [self.departures[-1]]
         
@@ -205,13 +211,13 @@ class MM1QueueSimulator:
         """
         Returns the average waiting time in the queue.
         """
-        return self.tot_wait_time/len(self.departures)
+        return self.tot_wait_time/self.departures[-1]
     
     def get_stats(self) -> (list, list, list, float):
         """
         Returns stats.
         """
-        return self.queue_length, self.departures, self.arrivals, self.avg_wait_time()
+        return self.queue_length[1:], self.departures[1:], self.arrivals[1:], self.avg_wait_time()
     
 class ConnectedQueueSimulator:
     def __init__(self):
@@ -307,11 +313,13 @@ class ConnectedQueueSimulator:
             self.arrivals += [self.arrivals[-1]]
 
         if random.random() < self.departure_probability(saturation_rate=saturation_rate):
-            self.queue.remove()
-            self.time_served = 0
-            self.departures += [self.departures[-1]+1]
-            if self.next_queue != None:
-                self.next_queue_timestamps += [self.time+self.next_queue_distance]
+            if self.queue.remove():
+                self.time_served = 0
+                self.departures += [self.departures[-1]+1]
+                if self.next_queue != None:
+                    self.next_queue_timestamps += [self.time+self.next_queue_distance]
+            else:
+                self.departures += [self.departures[-1]]
         else:
             self.departures += [self.departures[-1]]
         
@@ -322,10 +330,10 @@ class ConnectedQueueSimulator:
         """
         Returns the average waiting time in the queue.
         """
-        return self.tot_wait_time/len(self.departures)
+        return self.tot_wait_time/self.departures[-1]
     
     def get_stats(self) -> (list, list, list, float):
         """
         Returns stats.
         """
-        return self.queue_length, self.departures, self.arrivals, self.avg_wait_time()
+        return self.queue_length[1:], self.departures[1:], self.arrivals[1:], self.avg_wait_time()
