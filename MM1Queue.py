@@ -45,41 +45,6 @@ class MM1Queue:
             return True
         return False
             
-class ConnectedQueue:
-    def __init__(self):
-        """
-        queue_length : int
-            Nbr of vehicles in the queue.
-        departure_rate : float
-            Rate at which vehicles depart from the queue [1/s].
-        """
-        self.queue_length = 0
-        self.departure_rate = 0
-    
-    def initialize(self, avg_departure_time: float) -> None:
-        """
-        Initializes the ConnectedQueue instance.
-        
-        avg_departure_time : float
-            The average time between departures from the queue.
-        """
-        self.departure_rate = 1/avg_departure_time
-    
-    def append(self) -> None:
-        """
-        Appends a vehicle to the queue.
-        """
-        self.queue_length += 1
-        
-    def remove(self) -> bool:
-        """
-        Removes a vehicle from the queue.
-        """
-        if self.queue_length > 0:
-            self.queue_length -= 1
-            return True
-        return False
-            
 class MM1QueueSimulator:
     def __init__(self):
         """
@@ -127,8 +92,6 @@ class MM1QueueSimulator:
             The average time between arrivals to the queue. Defaults to 0.
         avg_departure_time : float
             The average time between departures from the queue.
-        random_arrivals (optional): bool
-            Determines whether the arrival process is stochastic or not. Defaults to True.
         """
         self.queue.initialize(avg_arrival_time=avg_arrival_time, avg_departure_time=avg_departure_time)
         
@@ -207,6 +170,7 @@ class MM1QueueSimulator:
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
         
+        
     def avg_wait_time(self) -> float:
         """
         Returns the average waiting time in the queue.
@@ -218,6 +182,41 @@ class MM1QueueSimulator:
         Returns stats.
         """
         return self.queue_length[1:], self.departures[1:], self.arrivals[1:], self.avg_wait_time()
+    
+class ConnectedQueue:
+    def __init__(self):
+        """
+        queue_length : int
+            Nbr of vehicles in the queue.
+        departure_rate : float
+            Rate at which vehicles depart from the queue [1/s].
+        """
+        self.queue_length = 0
+        self.departure_rate = 0
+    
+    def initialize(self, avg_departure_time: float) -> None:
+        """
+        Initializes the ConnectedQueue instance.
+        
+        avg_departure_time : float
+            The average time between departures from the queue.
+        """
+        self.departure_rate = 1/avg_departure_time
+    
+    def append(self) -> None:
+        """
+        Appends a vehicle to the queue.
+        """
+        self.queue_length += 1
+        
+    def remove(self) -> bool:
+        """
+        Removes a vehicle from the queue.
+        """
+        if self.queue_length > 0:
+            self.queue_length -= 1
+            return True
+        return False
     
 class ConnectedQueueSimulator:
     def __init__(self):
@@ -270,10 +269,20 @@ class ConnectedQueueSimulator:
             The average time between arrivals to the queue. Defaults to 0.
         avg_departure_time : float
             The average time between departures from the queue.
-        random_arrivals (optional): bool
-            Determines whether the arrival process is stochastic or not. Defaults to True.
         """
         self.queue.initialize(avg_departure_time=avg_departure_time)
+        
+    def connect_queue(self, next_queue, distance: 0.) -> None:
+        """
+        Connects the queue to a ConnectedQueueSimulator instance. Departures from this queue are set to arrive to next_queue.
+        
+        next_queue : ConnectedQueueSimulator
+            The queue in front of this queue.
+        distance (optional) : float
+            The distance [s] to the other queue.
+        """
+        self.next_queue = next_queue
+        self.next_queue_distance = distance
         
     def time_step(self, delta_t: float) -> None:
         """
@@ -304,6 +313,11 @@ class ConnectedQueueSimulator:
         """
         Runs all events (arrivals/departures) given the current circumstances and elapses time.
         """      
+        if len(self.next_queue_timestamps) > 0: # Check if prev. departed vehicles have reached next queue
+            if self.next_queue_timestamps[0] < self.time:
+                self.next_queue.arrival = True
+                self.next_queue_timestamps = self.next_queue_timestamps[1:]
+    
         if self.arrival:
             self.queue.append()
             self.time_since_arrival = 0
