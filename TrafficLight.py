@@ -34,3 +34,11 @@ class SimpleTrafficLight:
             return 1
         else:
             return 0
+        
+    def plot_green_light(self, plt, tot_time):
+        k = int(tot_time/self.period)
+        
+        for i in range(k):
+            start = i*self.period+self.time_delay
+            
+            plt.axvspan(start, start+self.period/2, facecolor='g', alpha=0.2)
