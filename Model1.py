@@ -147,6 +147,19 @@ class BaseQueueSimulator:
         
         for vehicle in self.queue.vehicles:
             vehicle.time_step(delta_t=delta_t)
+            
+    def adjust_position(self, vehicle) -> None:
+        """
+        Adjusts the position of the vehicle to this queue.
+        """
+        if self.queue.direction == Vehicle.NORTH:
+            vehicle.position = (self.queue.head_position[0], vehicle.position[1])
+        elif self.queue.direction == Vehicle.WEST:
+            vehicle.position = (vehicle.position[0], self.queue.head_position[1])
+        elif self.queue.direction == Vehicle.SOUTH:
+            vehicle.position = (self.queue.head_position[0], vehicle.position[1])
+        elif self.queue.direction == Vehicle.WEST:
+            vehicle.position = (vehicle.position[0], self.queue.head_position[1])
         
     def arrival_probability(self) -> float:
         """
@@ -158,7 +171,7 @@ class BaseQueueSimulator:
         
     def departure_probability(self, saturation_rate: float) -> float:
         """
-        Returns the probability of a departure occuring at current time.
+        Returns the probability of a departure occurring at current time.
         
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
@@ -338,10 +351,10 @@ class FourWayIntersectionSimulator:
             The width of the roads.
         """
         self.position = position
-        self.queue_n.head_position = (position[0], position[1]+length/2)
-        self.queue_w.head_position = (position[0]+length/2, position[1])
-        self.queue_s.head_position = (position[0], position[1]-length/2)
-        self.queue_e.head_position = (position[0]-length/2, position[1])
+        self.queue_n.head_position = (position[0]+2, position[1]+length/2)
+        self.queue_w.head_position = (position[0]+length/2, position[1]-2)
+        self.queue_s.head_position = (position[0]-2, position[1]-length/2)
+        self.queue_e.head_position = (position[0]-length/2, position[1]+2)
         
         self.queue_n.direction = Vehicle.NORTH
         self.queue_w.direction = Vehicle.WEST
@@ -540,14 +553,28 @@ class IntersectionNetworkSimulator:
         for departing_vehicle,prev_pos in departures:
             if departing_vehicle.direction == Vehicle.NORTH:
                 departing_vehicle.destination = (prev_pos[0]-1, prev_pos[1])
+                
+                if departing_vehicle.destination in self.grid_inds:
+                    self.intersections[departing_vehicle.destination].queue_n.adjust_position(departing_vehicle)
+                    
             elif departing_vehicle.direction == Vehicle.WEST:
                 departing_vehicle.destination = (prev_pos[0], prev_pos[1]-1)
+                
+                if departing_vehicle.destination in self.grid_inds:
+                    self.intersections[departing_vehicle.destination].queue_w.adjust_position(departing_vehicle)
+                    
             elif departing_vehicle.direction == Vehicle.SOUTH:
                 departing_vehicle.destination = (prev_pos[0]+1, prev_pos[1])
+                
+                if departing_vehicle.destination in self.grid_inds:
+                    self.intersections[departing_vehicle.destination].queue_s.adjust_position(departing_vehicle)
+                    
             elif departing_vehicle.direction == Vehicle.EAST:
                 departing_vehicle.destination = (prev_pos[0], prev_pos[1]+1)
-
-            #if departing_vehicle.destination[0] >= 0 and departing_vehicle.destination[0] < self.grid_dimensions[0] and departing_vehicle.destination[1] >= 0 and departing_vehicle.destination[1] < self.grid_dimensions[1]:
+                
+                if departing_vehicle.destination in self.grid_inds:
+                    self.intersections[departing_vehicle.destination].queue_e.adjust_position(departing_vehicle)
+            
             moving_vehicles += [departing_vehicle]
                 
         return moving_vehicles
