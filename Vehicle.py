@@ -63,7 +63,7 @@ class Vehicle:
         self.speed = self.full_speed
         
     def initialize_plot(self, plt) -> None:
-        self.visual, = plt.plot([], [], 'ro', markersize = 5)
+        self.visual, = plt.plot([], [], 'bo', markersize = 4)
         
     def update_plot(self) -> None:
         self.visual.set_data(self.position)

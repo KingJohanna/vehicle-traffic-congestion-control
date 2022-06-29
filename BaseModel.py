@@ -252,6 +252,11 @@ class FourWayIntersectionSimulator:
         self.traffic_light_ns = traffic_light_ns
         self.traffic_light_ew = traffic_light_ew
         
+        self.traffic_light_ns.positions[0] = (self.queue_n.queue.head_position[0]+3, self.queue_n.queue.head_position[1]+3)
+        self.traffic_light_ns.positions[1] = (self.queue_s.queue.head_position[0]-3, self.queue_s.queue.head_position[1]-3)
+        self.traffic_light_ew.positions[0] = (self.queue_e.queue.head_position[0]+3, self.queue_e.queue.head_position[1]-3)
+        self.traffic_light_ew.positions[1] = (self.queue_w.queue.head_position[0]-3, self.queue_w.queue.head_position[1]+3)
+        
     def initialize_structure(self, position: (float, float), length=30.) -> None:
         """
         Initializes the structure of the intersection.
@@ -321,6 +326,14 @@ class FourWayIntersectionSimulator:
         self.traffic_light_ns.time_step(delta_t=delta_t)
         self.traffic_light_ew.time_step(delta_t=delta_t)
         self.time = self.queue_n.time
+        
+        if animate:
+            if None in self.traffic_light_ns.visuals:
+                self.traffic_light_ns.initialize_plot(plt=plt)
+            self.traffic_light_ns.update_plot()
+            if None in self.traffic_light_ew.visuals:
+                self.traffic_light_ew.initialize_plot(plt=plt)
+            self.traffic_light_ew.update_plot()
         
         return departures
         

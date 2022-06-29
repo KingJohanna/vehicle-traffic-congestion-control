@@ -1,7 +1,32 @@
 import numpy as np
 import random
 
-class SimpleTrafficLight:
+class TrafficLight:
+    def __init__(self):
+        self.visuals = [None, None]
+        self.service = False
+        self.positions = [(0,0), (0,0)]
+        self.time = 0
+        
+    def time_step(self, delta_t: float) -> None:
+        """
+        Elapses time by one time-step
+        """
+        self.time += delta_t
+        
+    def initialize_plot(self, plt) -> None:
+        for i,pos in enumerate(self.positions):
+            self.visuals[i], = plt.plot(pos[0], pos[1], 'o', markersize = 7)
+
+    def update_plot(self) -> None:
+        if bool(self.service):
+            for vis in self.visuals:
+                vis.set_color('green')
+        else:
+            for vis in self.visuals:
+                vis.set_color('red')
+
+class SimpleTrafficLight(TrafficLight):
     def __init__(self):
         """
         period : float
@@ -12,6 +37,9 @@ class SimpleTrafficLight:
         self.period = 0.
         self.time_delay = 0.
         self.time = 0.
+        self.visuals = [None, None]
+        self.positions = [(0,0), (0,0)]
+        self.service = False
         
     def initialize(self, period: float, time_delay: float) -> None:
         """
@@ -24,12 +52,6 @@ class SimpleTrafficLight:
         """
         self.period = period
         self.time_delay = time_delay
-    
-    def time_step(self, delta_t: float) -> None:
-        """
-        Elapses time by one time-step
-        """
-        self.time += delta_t
         
     def saturation_rate(self, delta_t=0.) -> float:
         """
@@ -39,8 +61,10 @@ class SimpleTrafficLight:
             The current time [s].
         """
         if np.sin(2*np.pi*(self.time-self.time_delay)/self.period) > 0:
+            self.service = 1
             return 1
         else:
+            self.service = 0
             return 0
         
     def plot_green_light(self, plt, end_time):
@@ -59,7 +83,7 @@ class SimpleTrafficLight:
             
             plt.axvspan(start, start+self.period/2, facecolor='g', alpha=0.2)
             
-class MemoryLessTrafficLight:
+class MemoryLessTrafficLight(TrafficLight):
     def __init__(self):
         """
         service : bool
@@ -75,6 +99,9 @@ class MemoryLessTrafficLight:
         self.green_to_red_probability = 0.
         self.red_to_green_probability = 0.
         self.time = 0.
+        self.service
+        self.visuals = [None, None]
+        self.positions = [(0,0), (0,0)]
         
     def initialize(self, green_to_red_rate: float, red_to_green_rate: float) -> None:
         """
@@ -109,7 +136,7 @@ class MemoryLessTrafficLight:
         
         return self.service
     
-class MemoryLessTrafficLightMirror:
+class MemoryLessTrafficLightMirror(TrafficLight):
     def __init__(self):
         """
         traffic_light : MemoryLessTrafficLight
@@ -119,6 +146,9 @@ class MemoryLessTrafficLightMirror:
         """
         self.traffic_light = None
         self.time = 0.
+        self.visuals = [None, None]
+        self.positions = [(0,0), (0,0)]
+        self.service = False
         
     def initialize(self, traffic_light: MemoryLessTrafficLight) -> None:
         """
@@ -129,17 +159,9 @@ class MemoryLessTrafficLightMirror:
         """
         self.traffic_light = traffic_light
         
-    def time_step(self, delta_t: float) -> None:
-        """
-        Elapses time by one time-step.
-        
-        delta_t : float
-            The time-step size.
-        """
-        self.time += delta_t
-        
     def saturation_rate(self, delta_t=0.):
         """
         Returns the current saturation rate.
         """
+        self.service = float(not self.traffic_light.service)
         return float(not self.traffic_light.service)
