@@ -3,6 +3,8 @@ import numpy as np
 import Vehicle
 import TrafficLight
 import math
+import matplotlib.pyplot as plt
+import matplotlib.animation as manimation
 
 class BaseQueue:
     def __init__(self):
@@ -420,6 +422,26 @@ class IntersectionNetworkSimulator:
             plt.plot(center[0], center[1], 'x', markersize=8)
         
         return fig, ax
+    
+    def simulate(self, delta_t: float, end_time: float, animate=False, file_name="simulation.mp4", speed=1) -> None:
+        if animate:
+            FFMpegWriter = manimation.writers['ffmpeg']
+            metadata = dict(title='Simulation', artist='Matplotlib',
+                            comment='Visual representation of the simulation.')
+            fps = int(speed/delta_t)
+            writer = FFMpegWriter(fps=fps, metadata=metadata)
+
+            fig, ax = self.initialize_plot(plt)
+            text = plt.gcf().text(0, 0, "Elapsed time: 0s", fontsize=14)
+
+            with writer.saving(fig, file_name, 100):
+                while self.time < end_time:
+                    self.run_event(delta_t=delta_t, animate=True, plt=plt)
+                    text.set_text("Elapsed time: "+str(round(self.time,1))+"s")
+                    writer.grab_frame()
+        else:
+            while self.time < end_time:
+                self.run_event(delta_t=delta_t)
         
     def run_event(self, delta_t: float, animate=False, plt=None) -> None:
         """
