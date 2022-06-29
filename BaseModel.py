@@ -140,7 +140,7 @@ class BaseQueueSimulator:
         self.next_arrival_timestamp = abs(np.random.normal(loc=avg_arrival_time, scale=0.1*avg_arrival_time))
         self.next_time_to_depart = abs(np.random.normal(loc=avg_departure_time, scale=0.1*avg_departure_time))
         
-    def time_step(self, delta_t: float) -> None:
+    def time_step(self, delta_t: float, animate=False, plt=None) -> None:
         """
         Elapses time by one time-step.
         
@@ -153,6 +153,8 @@ class BaseQueueSimulator:
         
         for vehicle in self.queue.vehicles:
             vehicle.time_step(delta_t=delta_t)
+            if animate:
+                vehicle.update_plot()
             
     def adjust_position(self, vehicle) -> None:
         """
@@ -248,7 +250,7 @@ class FourWayIntersectionSimulator:
         self.traffic_light_ns = traffic_light_ns
         self.traffic_light_ew = traffic_light_ew
         
-    def initialize_structure(self, position: (float, float), length=15.) -> None:
+    def initialize_structure(self, position: (float, float), length=30.) -> None:
         """
         Initializes the structure of the intersection.
         
@@ -258,10 +260,10 @@ class FourWayIntersectionSimulator:
             The width of the roads.
         """
         self.position = position
-        self.queue_n.head_position = (position[0]+2, position[1]+length/2)
-        self.queue_w.head_position = (position[0]+length/2, position[1]-2)
-        self.queue_s.head_position = (position[0]-2, position[1]-length/2)
-        self.queue_e.head_position = (position[0]-length/2, position[1]+2)
+        self.queue_n.head_position = (position[0]+3, position[1]-length/2)
+        self.queue_w.head_position = (position[0]+length/2, position[1]+3)
+        self.queue_s.head_position = (position[0]-3, position[1]+length/2)
+        self.queue_e.head_position = (position[0]-length/2, position[1]-3)
         
         self.queue_n.direction = Vehicle.NORTH
         self.queue_w.direction = Vehicle.WEST
@@ -288,7 +290,7 @@ class FourWayIntersectionSimulator:
         self.queue_s.initialize(avg_arrival_time=avg_arrival_time_s, avg_departure_time=avg_departure_time, direction=self.queue_s.direction, head_position=self.queue_s.head_position)
         self.queue_e.initialize(avg_arrival_time=avg_arrival_time_e, avg_departure_time=avg_departure_time, direction=self.queue_e.direction, head_position=self.queue_e.head_position)
         
-    def run_event(self, delta_t: float) -> list:
+    def run_event(self, delta_t: float, animate=False, plt=None) -> list:
         """
         Runs all events (arrivals/departures) given the current circumstances and elapses time.
         
@@ -296,22 +298,21 @@ class FourWayIntersectionSimulator:
             The time-step size.
         """
         departures = []
-        departing_vehicle_n = self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t))
-        departing_vehicle_w = self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t))
-        departing_vehicle_s = self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t))
-        departing_vehicle_e = self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t))
+        departing_vehicle_n = self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        departing_vehicle_w = self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        departing_vehicle_s = self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        departing_vehicle_e = self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
         
         if departing_vehicle_n != None:
-            departing_vehicle_n.in_grid = True
             departures += [departing_vehicle_n]
+            
         if departing_vehicle_w != None:
-            departing_vehicle_w.in_grid = True
             departures += [departing_vehicle_w]
+            
         if departing_vehicle_s != None:
-            departing_vehicle_s.in_grid = True
             departures += [departing_vehicle_s]
+            
         if departing_vehicle_e != None:
-            departing_vehicle_e.in_grid = True
             departures += [departing_vehicle_e]
         
         
@@ -375,7 +376,7 @@ class IntersectionNetworkSimulator:
             if grid_ind[1] == grid_dimensions[1]-1: # right edge
                 self.intersections[grid_ind].set_queues(queue_w=self.edge_type())
                 
-            self.intersections[grid_ind].initialize_structure(position=(grid_ind[1]*grid_distance, grid_ind[0]*grid_distance))
+            self.intersections[grid_ind].initialize_structure(position=(grid_ind[1]*grid_distance, -grid_ind[0]*grid_distance))
     
     def set_queue_rate_parameters(self, grid_ind: (int,int), avg_departure_time: float, avg_arrival_time_n=np.inf, avg_arrival_time_w=np.inf, avg_arrival_time_s=np.inf, avg_arrival_time_e=np.inf) -> None:
         """
@@ -409,7 +410,18 @@ class IntersectionNetworkSimulator:
         """
         self.intersections[grid_ind].set_traffic_lights(traffic_light_ns=traffic_light_ns, traffic_light_ew=traffic_light_ew)
         
-    def run_event(self, delta_t: float) -> None:
+    def initialize_plot(self, plt):
+        fig, ax = plt.subplots()
+        ax.axis('equal')
+        ax.set(xlim=(-50,(self.grid_dimensions[1]-1)*self.grid_distance+50), ylim=(-(self.grid_dimensions[0]-1)*self.grid_distance-50,50))
+
+        for grid_ind in self.grid_inds:
+            center = self.intersections[grid_ind].position
+            plt.plot(center[0], center[1], 'x', markersize=8)
+        
+        return fig, ax
+        
+    def run_event(self, delta_t: float, animate=False, plt=None) -> None:
         """
         Runs all events (departures/arrivals) given the current circumstances and elapses time.
         
@@ -436,18 +448,27 @@ class IntersectionNetworkSimulator:
         departures = []
         
         for grid_ind in self.grid_inds:
-            intersection_departures = self.intersections[grid_ind].run_event(delta_t=delta_t)
+            intersection_departures = self.intersections[grid_ind].run_event(delta_t=delta_t, animate=animate, plt=plt)
             departures += [(departure,grid_ind) for departure in intersection_departures]
             
         self.moving_vehicles += self.update_destinations(departures)
+        
         moving_vehicles = []
         
         for vehicle in self.moving_vehicles:
+            if animate:
+                if vehicle.visual == None:
+                    vehicle.initialize_plot(plt)
+                vehicle.update_plot()
+                
             vehicle.time_step(delta_t=delta_t)
             
-            
-            if not self.out_of_bounds(vehicle): # check if vehicle has exited the network
+            if self.out_of_bounds(vehicle): # check if vehicle has exited the network
+                if animate:
+                    vehicle.remove_plot()
+            else:
                 moving_vehicles += [vehicle]
+            
         
         self.moving_vehicles = moving_vehicles
         self.time = self.intersections[(0,0)].time
@@ -497,11 +518,11 @@ class IntersectionNetworkSimulator:
         vehicle : Vehicle.Vehicle
             The vehicle being checked.
         """
-        if vehicle.direction == Vehicle.NORTH and vehicle.position[1] < self.intersections[(0,0)].queue_s.queue.tail_position[1]:
+        if vehicle.direction == Vehicle.NORTH and vehicle.position[1] > self.intersections[(0,0)].queue_s.queue.tail_position[1]:
             return True
         elif vehicle.direction == Vehicle.WEST and vehicle.position[0] < self.intersections[(0,0)].queue_e.queue.tail_position[0]:
             return True
-        elif vehicle.direction == Vehicle.SOUTH and vehicle.position[1] > self.intersections[self.grid_inds[-1]].queue_n.queue.tail_position[1]:
+        elif vehicle.direction == Vehicle.SOUTH and vehicle.position[1] < self.intersections[self.grid_inds[-1]].queue_n.queue.tail_position[1]:
             return True
         elif vehicle.direction == Vehicle.EAST and vehicle.position[0] > self.intersections[self.grid_inds[-1]].queue_w.queue.tail_position[0]:
             return True

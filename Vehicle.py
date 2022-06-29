@@ -1,6 +1,8 @@
-NORTH = (0,-1)
+import numpy as np
+
+NORTH = (0,1)
 WEST = (-1,0)
-SOUTH = (0,1)
+SOUTH = (0,-1)
 EAST = (1,0)
 
 class Vehicle:
@@ -13,6 +15,7 @@ class Vehicle:
         self.length = 0.
         self.wait_time = 0.
         self.time = 0.
+        self.visual = None
         
     def initialize(self, position: (float, float), direction: (int, int), full_speed=14, length=5):
         self.position = position
@@ -58,3 +61,12 @@ class Vehicle:
     def accelerate(self) -> None:
         self.wait_time = 0.
         self.speed = self.full_speed
+        
+    def initialize_plot(self, plt) -> None:
+        self.visual, = plt.plot([], [], 'ro', markersize = 5)
+        
+    def update_plot(self) -> None:
+        self.visual.set_data(self.position)
+        
+    def remove_plot(self) -> None:
+        self.visual.set_data(np.inf, np.inf)

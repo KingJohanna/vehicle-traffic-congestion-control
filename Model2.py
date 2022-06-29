@@ -27,7 +27,7 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
         
         return delta_t*self.queue.departure_rate
     
-    def run_event(self, delta_t: float, saturation_rate: float) -> Vehicle.Vehicle:
+    def run_event(self, delta_t: float, saturation_rate: float, animate=False, plt=None) -> Vehicle.Vehicle:
         """
         Runs all events (arrivals/departures) given the current circumstances and elapses time.
         
@@ -41,6 +41,8 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
         if random.random() < self.arrival_probability(delta_t=delta_t):
             arriving_vehicle = Vehicle.Vehicle()
             arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
+            if animate:
+                arriving_vehicle.initialize_plot(plt=plt)
             self.queue.append(arriving_vehicle)
             self.time_since_arrival = 0
             self.arrivals += [self.arrivals[-1]+1]
@@ -60,7 +62,7 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
             self.departures += [self.departures[-1]]
         
         self.queue_length += [self.queue.queue_length]
-        self.time_step(delta_t=delta_t)
+        self.time_step(delta_t=delta_t, animate=animate, plt=plt)
         
         return departing_vehicle
 
@@ -88,7 +90,7 @@ class ConnectedQueueSimulator(BaseModel.BaseQueueSimulator):
         
         return delta_t*self.queue.departure_rate
         
-    def run_event(self, delta_t: float, saturation_rate: float) -> None:
+    def run_event(self, delta_t: float, saturation_rate: float, animate=False, plt=None) -> None:
         """
         Runs all events (departures) given the current circumstances and elapses time.
         

@@ -74,6 +74,7 @@ class MemoryLessTrafficLight:
         self.service = bool(random.getrandbits(1))
         self.green_to_red_probability = 0.
         self.red_to_green_probability = 0.
+        self.time = 0.
         
     def initialize(self, green_to_red_rate: float, red_to_green_rate: float) -> None:
         """
