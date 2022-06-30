@@ -16,7 +16,7 @@ class TrafficLight:
         
     def initialize_plot(self, plt) -> None:
         for i,pos in enumerate(self.positions):
-            self.visuals[i], = plt.plot(pos[0], pos[1], 'o', markersize = 7)
+            self.visuals[i], = plt.plot(pos[0], pos[1], 'o', markersize = 6)
 
     def update_plot(self) -> None:
         if bool(self.service):

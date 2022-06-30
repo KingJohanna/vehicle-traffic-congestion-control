@@ -127,6 +127,7 @@ class BaseQueueSimulator:
         self.tot_wait_time = 0
         self.next_arrival_timestamp = 0
         self.next_time_to_depart = 0
+        self.visual = None
         
     def initialize(self, avg_departure_time=np.inf, avg_arrival_time=np.inf, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
         """
@@ -144,6 +145,20 @@ class BaseQueueSimulator:
         self.queue.initialize(avg_arrival_time=avg_arrival_time, avg_departure_time=avg_departure_time, direction=direction, head_position=head_position)
         self.next_arrival_timestamp = abs(np.random.normal(loc=avg_arrival_time, scale=0.1*avg_arrival_time))
         self.next_time_to_depart = abs(np.random.normal(loc=avg_departure_time, scale=0.1*avg_departure_time))
+        
+    def initialize_plot(self, position, plt) -> None:
+        if self.queue.direction == Vehicle.NORTH:
+            self.visual = plt.text(position[0], position[1], "0", ha="right", va="bottom")
+        elif self.queue.direction == Vehicle.WEST:
+            self.visual = plt.text(position[0], position[1], "0", ha="right", va="top")
+        elif self.queue.direction == Vehicle.SOUTH:
+            self.visual = plt.text(position[0], position[1], "0", ha="left", va="top")
+        elif self.queue.direction == Vehicle.EAST:
+            self.visual = plt.text(position[0], position[1], "0", ha="left", va="bottom")
+        
+        
+    def update_plot(self) -> None:
+        self.visual.set_text(self.queue.queue_length)
         
     def time_step(self, delta_t: float) -> None:
         """
@@ -346,7 +361,20 @@ class FourWayIntersectionSimulator:
             if None in self.traffic_light_ew.visuals:
                 self.traffic_light_ew.initialize_plot(plt=plt)
             self.traffic_light_ew.update_plot()
-        
+            
+            if self.queue_n.visual == None:
+                self.queue_n.initialize_plot(position=(self.queue_n.queue.head_position[0]+40,self.queue_n.queue.head_position[1]-20), plt=plt)
+            self.queue_n.update_plot()
+            if self.queue_w.visual == None:
+                self.queue_w.initialize_plot(position=(self.queue_w.queue.head_position[0]+20,self.queue_w.queue.head_position[1]+40), plt=plt)
+            self.queue_w.update_plot()
+            if self.queue_s.visual == None:
+                self.queue_s.initialize_plot(position=(self.queue_s.queue.head_position[0]-40,self.queue_s.queue.head_position[1]+20), plt=plt)
+            self.queue_s.update_plot()
+            if self.queue_e.visual == None:
+                self.queue_e.initialize_plot(position=(self.queue_e.queue.head_position[0]-20,self.queue_e.queue.head_position[1]-40), plt=plt)
+            self.queue_e.update_plot()
+            
         return arrivals, departures
         
 class IntersectionNetworkSimulator:
@@ -447,7 +475,7 @@ class IntersectionNetworkSimulator:
             plt.plot(center[0], center[1], 'x', markersize=8)
         
         return fig, ax
-    
+
     def simulate(self, delta_t: float, end_time: float, animate=False, file_name="simulation.mp4", speed=1) -> None:
         if animate:
             FFMpegWriter = manimation.writers['ffmpeg']
