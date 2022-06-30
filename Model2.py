@@ -35,7 +35,8 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
             The time-step size [s].
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
-        """     
+        """
+        arriving_vehicle = None
         departing_vehicle = None
         
         if random.random() < self.arrival_probability(delta_t=delta_t):
@@ -62,9 +63,9 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
             self.departures += [self.departures[-1]]
         
         self.queue_length += [self.queue.queue_length]
-        self.time_step(delta_t=delta_t, animate=animate, plt=plt)
+        self.time_step(delta_t=delta_t)
         
-        return departing_vehicle
+        return arriving_vehicle, departing_vehicle
 
 class ConnectedQueueSimulator(BaseModel.BaseQueueSimulator):
     def queue_vehicle(self, arriving_vehicle: Vehicle.Vehicle) -> None:
@@ -119,7 +120,7 @@ class ConnectedQueueSimulator(BaseModel.BaseQueueSimulator):
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
         
-        return departing_vehicle
+        return None, departing_vehicle
     
 class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
     def __init__(self):
@@ -175,5 +176,5 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         self.intersection_type = FourWayIntersectionSimulator
         self.intersections = None
         self.grid_inds = []
-        self.moving_vehicles = []
+        self.vehicles = set()
         self.time = 0.

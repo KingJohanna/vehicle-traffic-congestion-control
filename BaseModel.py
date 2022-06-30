@@ -61,8 +61,8 @@ class BaseQueue:
         vehicle.stop()
         self.vehicles += [vehicle]
         self.queue_length = len(self.vehicles)
-        vehicle.position = self.tail_position
-        self.tail_position = (self.tail_position[0]-self.direction[0]*vehicle.length, self.tail_position[1]-self.direction[1]*vehicle.length)
+        self.update_tail_position()
+        vehicle.position = (self.tail_position[0]+vehicle.direction[0]*vehicle.length, self.tail_position[1]+vehicle.direction[1]*vehicle.length)
         
     def shift_vehicles(self) -> None:
         """
@@ -80,15 +80,18 @@ class BaseQueue:
         if self.queue_length > 0:
             self.shift_vehicles()
             departing_vehicle = self.vehicles[0]
-            self.vehicles = self.vehicles[1:]
+            self.vehicles.remove(departing_vehicle)
             self.queue_length = len(self.vehicles)
-            if self.queue_length > 0: 
-                self.tail_position = (self.vehicles[-1].position[0]-self.direction[0]*departing_vehicle.length, self.vehicles[-1].position[1]-self.direction[1]*departing_vehicle.length)
-            else:
-                self.tail_position = self.head_position
-                
+            self.update_tail_position()
+            
             return departing_vehicle
+        
+        self.update_tail_position()
         return None
+    
+    def update_tail_position(self) -> None:
+        tot_length = sum([vehicle.length for vehicle in self.vehicles])
+        self.tail_position = (self.head_position[0]-self.direction[0]*tot_length, self.head_position[1]-self.direction[1]*tot_length)
     
 class BaseQueueSimulator:
     def __init__(self):
@@ -142,7 +145,7 @@ class BaseQueueSimulator:
         self.next_arrival_timestamp = abs(np.random.normal(loc=avg_arrival_time, scale=0.1*avg_arrival_time))
         self.next_time_to_depart = abs(np.random.normal(loc=avg_departure_time, scale=0.1*avg_departure_time))
         
-    def time_step(self, delta_t: float, animate=False, plt=None) -> None:
+    def time_step(self, delta_t: float) -> None:
         """
         Elapses time by one time-step.
         
@@ -152,11 +155,6 @@ class BaseQueueSimulator:
         self.time += delta_t
         self.time_since_arrival += delta_t
         self.time_served += delta_t
-        
-        for vehicle in self.queue.vehicles:
-            vehicle.time_step(delta_t=delta_t)
-            if animate:
-                vehicle.update_plot()
             
     def adjust_position(self, vehicle) -> None:
         """
@@ -304,11 +302,13 @@ class FourWayIntersectionSimulator:
         delta_t : float
             The time-step size.
         """
+        arrivals = []
         departures = []
-        departing_vehicle_n = self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
-        departing_vehicle_w = self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
-        departing_vehicle_s = self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
-        departing_vehicle_e = self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        
+        arriving_vehicle_n, departing_vehicle_n = self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        arriving_vehicle_w, departing_vehicle_w = self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        arriving_vehicle_s, departing_vehicle_s = self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
+        arriving_vehicle_e, departing_vehicle_e = self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t), animate=animate, plt=plt)
         
         if departing_vehicle_n != None:
             departures += [departing_vehicle_n]
@@ -321,6 +321,18 @@ class FourWayIntersectionSimulator:
             
         if departing_vehicle_e != None:
             departures += [departing_vehicle_e]
+            
+        if arriving_vehicle_n != None:
+            arrivals += [arriving_vehicle_n]
+            
+        if arriving_vehicle_w != None:
+            arrivals += [arriving_vehicle_w]
+            
+        if arriving_vehicle_s != None:
+            arrivals += [arriving_vehicle_s]
+            
+        if arriving_vehicle_e != None:
+            arrivals += [arriving_vehicle_e]
         
         
         self.traffic_light_ns.time_step(delta_t=delta_t)
@@ -335,7 +347,7 @@ class FourWayIntersectionSimulator:
                 self.traffic_light_ew.initialize_plot(plt=plt)
             self.traffic_light_ew.update_plot()
         
-        return departures
+        return arrivals, departures
         
 class IntersectionNetworkSimulator:
     def __init__(self):
@@ -359,7 +371,7 @@ class IntersectionNetworkSimulator:
         self.intersection_type = None
         self.intersections = None
         self.grid_inds = []
-        self.moving_vehicles = []
+        self.vehicles = set()
         self.time = 0.
         
     def initialize(self, grid_dimensions: (int,int), grid_distance: float):
@@ -463,10 +475,8 @@ class IntersectionNetworkSimulator:
         delta_t : float
             The time-step size.
         """
-        moving_vehicles = []
-        
-        for vehicle in self.moving_vehicles: # check if vehicle has arrived to destination
-            if vehicle.destination in self.grid_inds and self.distance_to_destination(vehicle=vehicle) <= 1:
+        for vehicle in self.vehicles: # check if vehicle has arrived to destination
+            if vehicle.destination in self.grid_inds and vehicle.speed > 0 and self.distance_to_destination(vehicle=vehicle) <= vehicle.speed*delta_t:
                 if vehicle.direction == Vehicle.NORTH:
                     self.intersections[vehicle.destination].queue_n.queue_vehicle(arriving_vehicle=vehicle)
                 elif vehicle.direction == Vehicle.WEST:
@@ -475,37 +485,37 @@ class IntersectionNetworkSimulator:
                     self.intersections[vehicle.destination].queue_s.queue_vehicle(arriving_vehicle=vehicle)
                 elif vehicle.direction == Vehicle.EAST:
                     self.intersections[vehicle.destination].queue_e.queue_vehicle(arriving_vehicle=vehicle)
-            else:
-                moving_vehicles += [vehicle]
-        
-        self.moving_vehicles = moving_vehicles
-        
+    
+        arrivals = []
         departures = []
         
         for grid_ind in self.grid_inds:
-            intersection_departures = self.intersections[grid_ind].run_event(delta_t=delta_t, animate=animate, plt=plt)
+            intersection_arrivals, intersection_departures = self.intersections[grid_ind].run_event(delta_t=delta_t, animate=animate, plt=plt)
+            arrivals += intersection_arrivals
             departures += [(departure,grid_ind) for departure in intersection_departures]
             
-        self.moving_vehicles += self.update_destinations(departures)
+        for arrival in arrivals:
+            self.vehicles.add(arrival)
+        departures = self.update_destinations(departures)
         
-        moving_vehicles = []
+        exits = []
         
-        for vehicle in self.moving_vehicles:
+        for vehicle in self.vehicles:
+            vehicle.time_step(delta_t=delta_t)
+            
             if animate:
                 if vehicle.visual == None:
                     vehicle.initialize_plot(plt)
                 vehicle.update_plot()
-                
-            vehicle.time_step(delta_t=delta_t)
             
-            if self.out_of_bounds(vehicle): # check if vehicle has exited the network
+            if self.out_of_bounds(vehicle):
+                exits += [vehicle]
                 if animate:
                     vehicle.remove_plot()
-            else:
-                moving_vehicles += [vehicle]
+                    
+        for exit in exits:
+            self.vehicles.remove(exit)
             
-        
-        self.moving_vehicles = moving_vehicles
         self.time = self.intersections[(0,0)].time
             
     def update_destinations(self, departures: list) -> list:
@@ -579,20 +589,23 @@ class IntersectionNetworkSimulator:
             destination_x = self.intersections[vehicle.destination].queue_n.queue.tail_position[0]
             destination_y = self.intersections[vehicle.destination].queue_n.queue.tail_position[1]
             
-            if vehicle.position[1] < destination_y:
+            if vehicle.position[1] > destination_y:
                 passed = -1
+                
         elif vehicle.direction == Vehicle.WEST:
             destination_x = self.intersections[vehicle.destination].queue_w.queue.tail_position[0]
             destination_y = self.intersections[vehicle.destination].queue_w.queue.tail_position[1]
             
             if vehicle.position[0] < destination_x:
                 passed = -1
+                
         elif vehicle.direction == Vehicle.SOUTH:
             destination_x = self.intersections[vehicle.destination].queue_s.queue.tail_position[0]
             destination_y = self.intersections[vehicle.destination].queue_s.queue.tail_position[1]
             
-            if vehicle.position[1] > destination_y:
+            if vehicle.position[1] < destination_y:
                 passed = -1
+                
         elif vehicle.direction == Vehicle.EAST:
             destination_x = self.intersections[vehicle.destination].queue_e.queue.tail_position[0]
             destination_y = self.intersections[vehicle.destination].queue_e.queue.tail_position[1]
