@@ -7,7 +7,7 @@ import Vehicle
 import TrafficLight
 import math
     
-class MM1QueueSimulator(BaseModel.BaseQueueSimulator):    
+class MM1QueueSimulator(BaseModel.QueueSimulator):    
     def time_until_arrival(self) -> float:
         """
         Returns a sampled time until next arrival [s]. 
@@ -66,7 +66,7 @@ class MM1QueueSimulator(BaseModel.BaseQueueSimulator):
         
         return arriving_vehicle, departing_vehicle
     
-class ConnectedQueueSimulator(BaseModel.ConnectedBaseQueueSimulator):
+class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
     def time_to_depart(self) -> float:
         """
         Returns a sampled time to depart [s].

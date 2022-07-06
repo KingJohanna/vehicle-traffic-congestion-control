@@ -5,7 +5,7 @@ import Vehicle
 import TrafficLight
 import math
 
-class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
+class SingleQueueSimulator(BaseModel.QueueSimulator):
     def arrival_probability(self, delta_t: float) -> float:
         """
         Returns the probability of an arrival occurring within a time-step.
@@ -67,7 +67,7 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
         
         return arriving_vehicle, departing_vehicle
 
-class ConnectedQueueSimulator(BaseModel.ConnectedBaseQueueSimulator):
+class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
     def departure_probability(self, delta_t: float, saturation_rate) -> float:
         """
         Returns the probability of a departure occurring within a time-step.

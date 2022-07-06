@@ -6,7 +6,7 @@ import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 
-class BaseQueue:
+class Queue:
     def __init__(self):
         """
         vehicles : list(Vehicle.Vehicle)
@@ -34,7 +34,7 @@ class BaseQueue:
     
     def initialize(self, avg_departure_time: float, direction: (int, int), head_position: (float, float), avg_arrival_time=np.inf) -> None:
         """
-        Initializes the BaseQueue instance.
+        Initializes the Queue instance.
         
         avg_arrival_time : float (optional)
             The average time [s] between arrivals to the queue. Defaults to infinity.
@@ -92,12 +92,55 @@ class BaseQueue:
     def update_tail_position(self) -> None:
         tot_length = sum([vehicle.length for vehicle in self.vehicles])
         self.tail_position = (self.head_position[0]-self.direction[0]*tot_length, self.head_position[1]-self.direction[1]*tot_length)
-    
-class BaseQueueSimulator:
+        
+class ConnectedQueue(Queue):
     def __init__(self):
         """
-        queue : BaseQueue
-            The internal BaseQueue instance.
+        vehicles : list(Vehicle.Vehicle)
+            List (FIFO) of vehicles contained within this queue.
+        direction : (float, float)
+            Travel direction of this queue.
+        head_position : (float, float)
+            Position of the queue's head.
+        tail_position : (float, float)
+            Position of the queue's tail.
+        queue_length : int
+            Nbr of vehicles in the queue.
+        arrival_rate : float
+            Rate at which vehicles arrive to the queue [1/s].
+        departure_rate : float
+            Rate at which vehicles depart from the queue [1/s].
+        """
+        self.vehicles = []
+        self.direction = (0, 0)
+        self.head_position = (0, 0)
+        self.tail_position = (0, 0)
+        self.queue_length = 0
+        self.departure_rate = 0
+    
+    def initialize(self, avg_departure_time: float, direction: (int, int), head_position: (float, float)) -> None:
+        """
+        Initializes the Queue instance.
+        
+        avg_arrival_time : float (optional)
+            The average time [s] between arrivals to the queue. Defaults to infinity.
+        avg_departure_time : float
+            The average time [s] between departures from the queue.
+        direction: (float, float)
+            Travel direction of this queue.
+        head_position : (float, float)
+            Position of the queue's head.
+        """
+        self.departure_rate = 1/avg_departure_time
+        self.direction = direction
+        self.head_position = head_position
+        self.tail_position = head_position
+    
+class QueueSimulator:
+    def __init__(self):
+        """
+        queue : Queue
+            The internal Queue instance.
         time : float
             The current simulation time [s].
         time_since_arrival : float
@@ -117,7 +160,7 @@ class BaseQueueSimulator:
         next_time_to_depart : float
             The time between the last departure and the next [s].
         """
-        self.queue = BaseQueue()
+        self.queue = Queue()
         self.time = 0
         self.time_since_arrival = 0
         self.time_served = 0
@@ -131,7 +174,7 @@ class BaseQueueSimulator:
         
     def initialize(self, avg_departure_time=np.inf, avg_arrival_time=np.inf, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
         """
-        Initializes the BaseQueueSimulator instance.
+        Initializes the QueueSimulator instance.
         
         avg_arrival_time (optional) : float
             The average time [s] between arrivals to the queue. Defaults to infinity.
@@ -199,7 +242,57 @@ class BaseQueueSimulator:
         """
         return self.queue_length[1:], self.departures[1:], self.arrivals[1:], self.avg_wait_time()
     
-class ConnectedBaseQueueSimulator(BaseQueueSimulator):
+class ConnectedQueueSimulator(QueueSimulator):
+    def __init__(self):
+        """
+        queue : Queue
+            The internal Queue instance.
+        time : float
+            The current simulation time [s].
+        time_since_arrival : float
+            Time since last arrival to the queue [s].
+        time_served : float
+            Amount of time frontmost vehicle has been served without departing from queue [s].
+        queue_length : list(int)
+            Nbr of vehicles in queue over time.
+        departures : list(int)
+            Total nbr of departures over time.
+        arrivals : list(int)
+            Totalt nbr of arrivals over time.
+        tot_wait_time : float
+            Total wait time for all vehicles that are and have been in the queue.
+        next_arrival_timestamp : float
+            The timestamp at which the next arrival occurs.
+        next_time_to_depart : float
+            The time between the last departure and the next [s].
+        """
+        self.queue = Queue()
+        self.time = 0
+        self.time_since_arrival = 0
+        self.time_served = 0
+        self.queue_length = [0]
+        self.departures = [0]
+        self.arrivals = [0]
+        self.tot_wait_time = 0
+        self.next_time_to_depart = 0
+        self.visual = None
+        
+    def initialize(self, avg_departure_time=np.inf, avg_arrival_time=np.inf, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
+        """
+        Initializes the QueueSimulator instance.
+        
+        avg_arrival_time (optional) : float
+            The average time [s] between arrivals to the queue. Defaults to infinity.
+        avg_departure_time (optional): float
+            The average time [s] between departures from the queue. Defaults to infinity.
+        direction : (float, float) (optional)
+            Travel direction of this queue. Defaults to Vehicle.NORTH.
+        head_position : (float, float) (optional)
+            Position of the queue's head. Defaults to (0.,0.).
+        """
+        self.queue.initialize(avg_departure_time=avg_departure_time, direction=direction, head_position=head_position)
+        self.next_time_to_depart = abs(np.random.normal(loc=avg_departure_time, scale=0.1*avg_departure_time))
+        
     def queue_vehicle(self, arriving_vehicle: Vehicle.Vehicle) -> None:
         """
         Adds a vehicle to the queue.
@@ -214,13 +307,13 @@ class ConnectedBaseQueueSimulator(BaseQueueSimulator):
 class FourWayIntersectionSimulator:
     def __init__(self):
         """
-        queue_n : BaseQueueSimulator
+        queue_n : QueueSimulator
             The northbound queue.
-        queue_w : BaseQueueSimulator
+        queue_w : QueueSimulator
             The westbound queue.
-        queue_s : BaseQueueSimulator
+        queue_s : QueueSimulator
             The southbound queue.
-        queue_e : BaseQueueSimulator
+        queue_e : QueueSimulator
             The eastbound queue.
         traffic_light_ns : TrafficLight.SimpleTrafficLight
             The traffic light controlling the north- and southbound queues.
@@ -233,10 +326,10 @@ class FourWayIntersectionSimulator:
         time : float
             The current simulation time [s].
         """
-        self.queue_n = ConnectedBaseQueueSimulator()
-        self.queue_w = ConnectedBaseQueueSimulator()
-        self.queue_s = ConnectedBaseQueueSimulator()
-        self.queue_e = ConnectedBaseQueueSimulator()
+        self.queue_n = ConnectedQueueSimulator()
+        self.queue_w = ConnectedQueueSimulator()
+        self.queue_s = ConnectedQueueSimulator()
+        self.queue_e = ConnectedQueueSimulator()
         self.traffic_light_ns = None
         self.traffic_light_ew = None
         self.position = (0.,0.)
@@ -247,13 +340,13 @@ class FourWayIntersectionSimulator:
         """
         Sets the queues of the intersection.
         
-        queue_n : BaseQueueSimulator
+        queue_n : QueueSimulator
             The northbound queue.
-        queue_w : BaseQueueSimulator
+        queue_w : QueueSimulator
             The westbound queue.
-        queue_s : BaseQueueSimulator
+        queue_s : QueueSimulator
             The southbound queue.
-        queue_e : BaseQueueSimulator
+        queue_e : QueueSimulator
             The eastbound queue.
         """
         if queue_n != None:
