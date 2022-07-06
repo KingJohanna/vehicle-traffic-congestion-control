@@ -67,18 +67,7 @@ class SingleQueueSimulator(BaseModel.BaseQueueSimulator):
         
         return arriving_vehicle, departing_vehicle
 
-class ConnectedQueueSimulator(BaseModel.BaseQueueSimulator):
-    def queue_vehicle(self, arriving_vehicle: Vehicle.Vehicle) -> None:
-        """
-        Adds a vehicle to the queue.
-        
-        arriving_vehicle: Vehicle.Vehicle
-            The vehicle to be added to the queue.
-        """
-        self.queue.append(arriving_vehicle)
-        self.time_since_arrival = 0
-        self.arrivals += [self.arrivals[-1]+1]
-        
+class ConnectedQueueSimulator(BaseModel.ConnectedBaseQueueSimulator):
     def departure_probability(self, delta_t: float, saturation_rate) -> float:
         """
         Returns the probability of a departure occurring within a time-step.

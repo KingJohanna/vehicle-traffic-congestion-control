@@ -199,6 +199,18 @@ class BaseQueueSimulator:
         """
         return self.queue_length[1:], self.departures[1:], self.arrivals[1:], self.avg_wait_time()
     
+class ConnectedBaseQueueSimulator(BaseQueueSimulator):
+    def queue_vehicle(self, arriving_vehicle: Vehicle.Vehicle) -> None:
+        """
+        Adds a vehicle to the queue.
+        
+        arriving_vehicle: Vehicle.Vehicle
+            The vehicle to be added to the queue.
+        """
+        self.queue.append(arriving_vehicle)
+        self.time_since_arrival = 0
+        self.arrivals += [self.arrivals[-1]+1]
+    
 class FourWayIntersectionSimulator:
     def __init__(self):
         """
@@ -221,10 +233,10 @@ class FourWayIntersectionSimulator:
         time : float
             The current simulation time [s].
         """
-        self.queue_n = BaseQueueSimulator()
-        self.queue_w = BaseQueueSimulator()
-        self.queue_s = BaseQueueSimulator()
-        self.queue_e = BaseQueueSimulator()
+        self.queue_n = ConnectedBaseQueueSimulator()
+        self.queue_w = ConnectedBaseQueueSimulator()
+        self.queue_s = ConnectedBaseQueueSimulator()
+        self.queue_e = ConnectedBaseQueueSimulator()
         self.traffic_light_ns = None
         self.traffic_light_ew = None
         self.position = (0.,0.)
@@ -465,8 +477,8 @@ class IntersectionNetworkSimulator:
         """
         self.intersections[grid_ind].set_traffic_lights(traffic_light_ns=traffic_light_ns, traffic_light_ew=traffic_light_ew)
         
-    def initialize_plot(self, plt):
-        fig, ax = plt.subplots()
+    def initialize_plot(self, fig_size, plt):
+        fig, ax = plt.subplots(figsize=fig_size, dpi=90)
         ax.axis('equal')
         ax.set(xlim=(-50,(self.grid_dimensions[1]-1)*self.grid_distance+50), ylim=(-(self.grid_dimensions[0]-1)*self.grid_distance-50,50))
 
@@ -476,16 +488,17 @@ class IntersectionNetworkSimulator:
         
         return fig, ax
 
-    def simulate(self, delta_t: float, end_time: float, animate=False, file_name="simulation.mp4", speed=1) -> None:
+    def simulate(self, delta_t: float, end_time: float, fig_width: float, animate=False, file_name="simulation.mp4", speed=1) -> None:
         if animate:
             FFMpegWriter = manimation.writers['ffmpeg']
             metadata = dict(title='Simulation', artist='Matplotlib',
                             comment='Visual representation of the simulation.')
             fps = int(speed/delta_t)
             writer = FFMpegWriter(fps=fps, metadata=metadata)
-
-            fig, ax = self.initialize_plot(plt)
-            text = plt.gcf().text(0, 0, "Elapsed time: 0s", fontsize=14)
+            
+            fig_height = fig_width*self.grid_dimensions[0]/self.grid_dimensions[1]
+            fig, ax = self.initialize_plot((fig_width, fig_height), plt)
+            text = plt.gcf().text(0, 0.95, "Elapsed time: 0s", fontsize=14)
 
             with writer.saving(fig, file_name, 100):
                 while self.time < end_time:
@@ -726,7 +739,7 @@ class IntersectionNetworkSimulator:
         axs[2].label_outer()
 
         if traffic_light != None:
-            traffic_light.plot_green_light(axs[0],end_time)
-            traffic_light.plot_green_light(axs[2],end_time)
+            traffic_light.plot_green_light(axs[0],t)
+            traffic_light.plot_green_light(axs[2],t)
 
         return fig, axs

@@ -5,6 +5,7 @@ class TrafficLight:
     def __init__(self):
         self.visuals = [None, None]
         self.service = False
+        self.service_history = [self.service]
         self.positions = [(0,0), (0,0)]
         self.time = 0
         
@@ -13,6 +14,7 @@ class TrafficLight:
         Elapses time by one time-step
         """
         self.time += delta_t
+        self.service_history += [self.service]
         
     def initialize_plot(self, plt) -> None:
         for i,pos in enumerate(self.positions):
@@ -25,6 +27,11 @@ class TrafficLight:
         else:
             for vis in self.visuals:
                 vis.set_color('red')
+                
+    def plot_green_light(self, ax, time):
+        y_lim = ax.get_ylim()
+        
+        ax.fill_between(time, y_lim[0], y_lim[1], where=self.service_history[:len(time)], facecolor='g', alpha=0.2)
 
 class SimpleTrafficLight(TrafficLight):
     def __init__(self):
@@ -40,6 +47,7 @@ class SimpleTrafficLight(TrafficLight):
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
         self.service = False
+        self.service_history = [self.service]
         
     def initialize(self, period: float, time_delay: float) -> None:
         """
@@ -66,22 +74,6 @@ class SimpleTrafficLight(TrafficLight):
         else:
             self.service = 0
             return 0
-        
-    def plot_green_light(self, plt, end_time):
-        """
-        Plots the intervals when there was green light.
-        
-        plt : matplotlib.pyplot
-            The pyplot instance on which the plot will appear.
-        end_time : float
-            The end time of the plot.
-        """
-        k = int(end_time/self.period)
-        
-        for i in range(k):
-            start = i*self.period+self.time_delay
-            
-            plt.axvspan(start, start+self.period/2, facecolor='g', alpha=0.2)
             
 class MemoryLessTrafficLight(TrafficLight):
     def __init__(self):
@@ -96,10 +88,10 @@ class MemoryLessTrafficLight(TrafficLight):
             The current simulation time.
         """
         self.service = bool(random.getrandbits(1))
+        self.service_history = [self.service]
         self.green_to_red_probability = 0.
         self.red_to_green_probability = 0.
         self.time = 0.
-        self.service
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
         
@@ -127,6 +119,7 @@ class MemoryLessTrafficLight(TrafficLight):
         elif not self.service and random.random() < delta_t*self.red_to_green_rate:
             self.service = True
             
+        self.service_history += [self.service]
         self.time += delta_t
             
     def saturation_rate(self, delta_t=0.) -> float:
@@ -149,6 +142,7 @@ class MemoryLessTrafficLightMirror(TrafficLight):
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
         self.service = False
+        self.service_history = []
         
     def initialize(self, traffic_light: MemoryLessTrafficLight) -> None:
         """
@@ -158,10 +152,13 @@ class MemoryLessTrafficLightMirror(TrafficLight):
             The traffic light instance to mirror.
         """
         self.traffic_light = traffic_light
+        self.service = not traffic_light.service
+        self.service_history += [self.service]
         
     def saturation_rate(self, delta_t=0.):
         """
         Returns the current saturation rate.
         """
         self.service = float(not self.traffic_light.service)
+        
         return float(not self.traffic_light.service)

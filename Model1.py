@@ -66,18 +66,7 @@ class MM1QueueSimulator(BaseModel.BaseQueueSimulator):
         
         return arriving_vehicle, departing_vehicle
     
-class ConnectedQueueSimulator(BaseModel.BaseQueueSimulator):
-    def queue_vehicle(self, arriving_vehicle: Vehicle.Vehicle) -> None:
-        """
-        Adds a vehicle to the queue.
-        
-        arriving_vehicle: Vehicle.Vehicle
-            The vehicle to be added to the queue.
-        """
-        self.queue.append(arriving_vehicle)
-        self.time_since_arrival = 0
-        self.arrivals += [self.arrivals[-1]+1]
-    
+class ConnectedQueueSimulator(BaseModel.ConnectedBaseQueueSimulator):
     def time_to_depart(self) -> float:
         """
         Returns a sampled time to depart [s].
