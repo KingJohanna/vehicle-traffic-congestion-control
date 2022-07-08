@@ -3,6 +3,7 @@ import numpy as np
 import Vehicle
 import TrafficLight
 import math
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 
@@ -162,7 +163,7 @@ class QueueSimulator:
         """
         self.queue = Queue()
         self.time = 0
-        self.time_since_arrival = 0
+        self.time_since_arrival = np.inf
         self.time_served = 0
         self.queue_length = [0]
         self.departures = [0]
@@ -171,6 +172,7 @@ class QueueSimulator:
         self.next_arrival_timestamp = 0
         self.next_time_to_depart = 0
         self.visual = None
+        self.edge = True
         
     def initialize(self, avg_departure_time=np.inf, avg_arrival_time=np.inf, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
         """
@@ -268,7 +270,7 @@ class ConnectedQueueSimulator(QueueSimulator):
         """
         self.queue = Queue()
         self.time = 0
-        self.time_since_arrival = 0
+        self.time_since_arrival = np.inf
         self.time_served = 0
         self.queue_length = [0]
         self.departures = [0]
@@ -276,6 +278,7 @@ class ConnectedQueueSimulator(QueueSimulator):
         self.tot_wait_time = 0
         self.next_time_to_depart = 0
         self.visual = None
+        self.edge = False
         
     def initialize(self, avg_departure_time=np.inf, avg_arrival_time=np.inf, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
         """
@@ -302,7 +305,6 @@ class ConnectedQueueSimulator(QueueSimulator):
         """
         self.queue.append(arriving_vehicle)
         self.time_since_arrival = 0
-        self.arrivals += [self.arrivals[-1]+1]
     
 class FourWayIntersectionSimulator:
     def __init__(self):
@@ -335,6 +337,8 @@ class FourWayIntersectionSimulator:
         self.position = (0.,0.)
         self.length = 0.
         self.time = 0.
+        self.observable = False
+        self.estimator = None
         
     def set_queues(self, queue_n=None, queue_w=None, queue_s=None, queue_e=None) -> None:
         """
@@ -506,6 +510,7 @@ class IntersectionNetworkSimulator:
         self.grid_inds = []
         self.vehicles = set()
         self.time = 0.
+        self.observations = []
         
     def initialize(self, grid_dimensions: (int,int), grid_distance: float):
         """
@@ -570,6 +575,15 @@ class IntersectionNetworkSimulator:
         """
         self.intersections[grid_ind].set_traffic_lights(traffic_light_ns=traffic_light_ns, traffic_light_ew=traffic_light_ew)
         
+    def set_observable_intersections(self, grid_inds: [(int,int)]) -> None:
+        for grid_ind in grid_inds:
+            self.intersections[grid_ind].observable = True
+            
+        unobservable = set(self.grid_inds)-set(grid_inds)   
+        for grid_ind in unobservable:
+            self.intersections[grid_ind].estimator = FourWayIntersectionEstimator()
+            self.intersections[grid_ind].estimator.initialize(intersection=self.intersections[grid_ind])
+        
     def initialize_plot(self, fig_size, plt):
         fig, ax = plt.subplots(figsize=fig_size, dpi=90)
         ax.axis('equal')
@@ -602,7 +616,7 @@ class IntersectionNetworkSimulator:
             while self.time < end_time:
                 self.run_event(delta_t=delta_t)
         
-    def run_event(self, delta_t: float, animate=False, plt=None) -> None:
+    def run_event(self, delta_t: float, animate=False, plt=None) -> (dict,dict):
         """
         Runs all events (departures/arrivals) given the current circumstances and elapses time.
         
@@ -620,17 +634,25 @@ class IntersectionNetworkSimulator:
                 elif vehicle.direction == Vehicle.EAST:
                     self.intersections[vehicle.destination].queue_e.queue_vehicle(arriving_vehicle=vehicle)
     
-        arrivals = []
-        departures = []
+        arrivals = dict()
+        departures = dict()
         
         for grid_ind in self.grid_inds:
             intersection_arrivals, intersection_departures = self.intersections[grid_ind].run_event(delta_t=delta_t, animate=animate, plt=plt)
-            arrivals += intersection_arrivals
-            departures += [(departure,grid_ind) for departure in intersection_departures]
+            arrivals[grid_ind] = intersection_arrivals
+            for arrival in intersection_arrivals:
+                self.vehicles.add(arrival)
             
-        for arrival in arrivals:
-            self.vehicles.add(arrival)
-        departures = self.update_destinations(departures)
+            intersection_departures = [(departure,grid_ind) for departure in intersection_departures]
+            departures[grid_ind] = self.update_destinations(intersection_departures)
+            
+            if self.intersections[grid_ind].observable:
+                self.observe(departures=departures[grid_ind])
+        
+        for grid_ind in self.grid_inds:
+            if not self.intersections[grid_ind].observable:
+                self.observations = self.intersections[grid_ind].estimator.estimate(observations=self.observations)
+                self.intersections[grid_ind].estimator.run_event(delta_t=delta_t)
         
         exits = []
         
@@ -651,6 +673,11 @@ class IntersectionNetworkSimulator:
             self.vehicles.remove(exit)
             
         self.time = self.intersections[(0,0)].time
+        
+        return arrivals, departures
+    
+    def observe(self, departures) -> None:
+        self.observations += [{"position": vehicle.position, "direction": vehicle.direction, "speed": vehicle.speed, "destination": self.intersections[vehicle.destination]} if vehicle.destination in self.grid_inds else {} for vehicle in departures]
             
     def update_destinations(self, departures: list) -> list:
         """
@@ -667,7 +694,7 @@ class IntersectionNetworkSimulator:
                 
                 if departing_vehicle.destination in self.grid_inds:
                     self.intersections[departing_vehicle.destination].queue_n.adjust_position(departing_vehicle)
-                    
+                        
             elif departing_vehicle.direction == Vehicle.WEST:
                 departing_vehicle.destination = (prev_pos[0], prev_pos[1]-1)
                 
@@ -811,24 +838,38 @@ class IntersectionNetworkSimulator:
         """
         fig, axs = plt.subplots(3, figsize=fig_size, dpi=90, sharex=True)
         queue_data = self.get_stats()[grid_ind][direction]
+        estimated_queue_data = None
+        if not self.intersections[grid_ind].observable:
+            estimated_queue_data = self.intersections[grid_ind].estimator.get_stats()[direction]
+        
         t = np.arange(start_time,end_time,delta_t)
         
         start_ind = int(start_time/delta_t)
         end_ind = int(end_time/delta_t)
         
-        axs[0].plot(t, queue_data['queue_length'][start_ind:end_ind], 'black')
-        axs[0].set(ylabel='number of vehicles')
+        axs[0].plot(t, queue_data['queue_length'][start_ind:end_ind], 'black', label="Simulated")
+        if estimated_queue_data != None:
+            axs[0].plot(t, estimated_queue_data['queue_length'][start_ind:end_ind], color='black', linestyle='--', label="Estimated")
+            axs[0].legend()
+        axs[0].set(ylabel='nbr. of vehicles')
         axs[0].set_title('Queue length')
+        axs[0].yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
         axs[0].label_outer()
         
         axs[1].plot(t, queue_data['arrivals'][start_ind:end_ind], 'black')
-        axs[1].set(ylabel='number of vehicles')
+        if estimated_queue_data != None:
+            axs[1].plot(t, estimated_queue_data['arrivals'][start_ind:end_ind], color='black', linestyle='--')
+        axs[1].set(ylabel='nbr. of vehicles')
         axs[1].set_title('Total nbr. of arrivals')
+        axs[1].yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
         axs[1].label_outer()
         
         axs[2].plot(t, queue_data['departures'][start_ind:end_ind], 'black')
-        axs[2].set(xlabel='time [s]', ylabel='number of vehicles')
+        if estimated_queue_data != None:
+            axs[2].plot(t, estimated_queue_data['departures'][start_ind:end_ind], color='black', linestyle='--')
+        axs[2].set(xlabel='time [s]', ylabel='nbr. of vehicles')
         axs[2].set_title('Total nbr. of departures')
+        axs[2].yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
         axs[2].label_outer()
 
         if traffic_light != None:
@@ -836,3 +877,225 @@ class IntersectionNetworkSimulator:
             traffic_light.plot_green_light(axs[2],t)
 
         return fig, axs
+    
+class QueueEstimator():
+    def __init__(self):
+        """
+        queue : Queue
+            The internal Queue instance.
+        time : float
+            The current simulation time [s].
+        time_since_arrival : float
+            Time since last arrival to the queue [s].
+        time_served : float
+            Amount of time frontmost vehicle has been served without departing from queue [s].
+        queue_length : list(int)
+            Nbr of vehicles in queue over time.
+        departures : list(int)
+            Total nbr of departures over time.
+        arrivals : list(int)
+            Totalt nbr of arrivals over time.
+        tot_wait_time : float
+            Total wait time for all vehicles that are and have been in the queue.
+        next_arrival_timestamp : float
+            The timestamp at which the next arrival occurs.
+        next_time_to_depart : float
+            The time between the last departure and the next [s].
+        """
+        self.time = 0
+        self.arrival_timestamps = []
+        self.time_served = 0
+        self.queue_length = [0]
+        self.departures = [0]
+        self.arrivals = [0]
+        self.external_arrivals = False
+        self.head_position = (0.,0.)
+        self.tail_position = (0.,0.)
+        self.direction = (0,0)
+        
+    def initialize(self, direction=Vehicle.NORTH, head_position=(0.,0.), external_arrivals=False) -> None:
+        """
+        Initializes the QueueSimulator instance.
+        
+        avg_arrival_time (optional) : float
+            The average time [s] between arrivals to the queue. Defaults to infinity.
+        avg_departure_time (optional): float
+            The average time [s] between departures from the queue. Defaults to infinity.
+        direction : (float, float) (optional)
+            Travel direction of this queue. Defaults to Vehicle.NORTH.
+        head_position : (float, float) (optional)
+            Position of the queue's head. Defaults to (0.,0.).
+        """
+        self.direction = direction
+        self.head_position = head_position
+        self.tail_position = head_position
+        self.external_arrivals = external_arrivals
+        
+    def time_step(self, delta_t: float) -> None:
+        """
+        Elapses time by one time-step.
+        
+        delta_t : float
+            The time-step size.
+        """
+        self.time += delta_t
+        self.time_served += delta_t
+        
+    def run_event(self, delta_t: float, saturation_rate: float) -> None:
+        arrival, departure = 0, 0
+        
+        if self.external_arrivals and len(self.arrival_timestamps) <= 0:
+            self.arrival_timestamps += [self.time+np.random.normal(loc=10, scale=5)]
+                
+        
+        if len(self.arrival_timestamps) > 0 and self.time >= self.arrival_timestamps[0]:
+            arrival = 1
+            self.arrivals += [self.arrivals[-1]+1]
+            self.arrival_timestamps = self.arrival_timestamps[1:]
+        else:
+            self.arrivals += [self.arrivals[-1]]
+        
+        if saturation_rate <= 0:
+            self.time_served = 0
+        
+        if self.queue_length[-1] > 0:
+            if self.time_served >= 2:
+                departure = 1
+                self.departures += [self.departures[-1]+1]
+                self.time_served = 0
+            else:
+                self.departures += [self.departures[-1]]
+        else:
+            self.time_served = 0
+            self.departures += [self.departures[-1]]
+            
+        self.queue_length += [self.queue_length[-1]+arrival-departure]
+        self.update_tail_position()
+        
+        self.time_step(delta_t=delta_t)
+        
+    def update_tail_position(self) -> None:
+        tot_length = self.queue_length[-1]*5
+        self.tail_position = (self.head_position[0]-self.direction[0]*tot_length, self.head_position[1]-self.direction[1]*tot_length)
+    
+    def get_stats(self) -> (list, list, list, float):
+        """
+        Returns stats.
+        """
+        return self.queue_length[1:], self.departures[1:], self.arrivals[1:]
+
+class FourWayIntersectionEstimator:
+    def __init__(self):
+        """
+        queue_n : QueueSimulator
+            The northbound queue.
+        queue_w : QueueSimulator
+            The westbound queue.
+        queue_s : QueueSimulator
+            The southbound queue.
+        queue_e : QueueSimulator
+            The eastbound queue.
+        traffic_light_ns : TrafficLight.SimpleTrafficLight
+            The traffic light controlling the north- and southbound queues.
+        traffic_light_ew : TrafficLight.SimpleTrafficLight
+            The traffic light controlling the east- and westbound queues.
+        position : (float, float)
+            The centerpoint of the intersection.
+        length : float
+            The width of the roads.
+        time : float
+            The current simulation time [s].
+        """
+        self.queue_n = QueueEstimator()
+        self.queue_w = QueueEstimator()
+        self.queue_s = QueueEstimator()
+        self.queue_e = QueueEstimator()
+        self.traffic_light_ns = None
+        self.traffic_light_ew = None
+        self.position = (0.,0.)
+        self.length = 0.
+        self.time = 0.
+        
+    def initialize(self, intersection: FourWayIntersectionSimulator):
+        self.traffic_light_ns = intersection.traffic_light_ns
+        self.traffic_light_ew = intersection.traffic_light_ew
+        
+        self.position = intersection.position
+        
+        self.queue_n.initialize(head_position=intersection.queue_n.head_position, direction=Vehicle.NORTH, external_arrivals=intersection.queue_n.edge)
+        self.queue_w.initialize(head_position=intersection.queue_w.head_position, direction=Vehicle.WEST, external_arrivals=intersection.queue_w.edge)
+        self.queue_s.initialize(head_position=intersection.queue_s.head_position, direction=Vehicle.SOUTH, external_arrivals=intersection.queue_s.edge)
+        self.queue_e.initialize(head_position=intersection.queue_e.head_position, direction=Vehicle.EAST, external_arrivals=intersection.queue_e.edge)
+        
+    def time_step(self, delta_t: float):
+        self.time += delta_t
+        
+    def estimate(self, observations: [dict]) -> [dict]:
+        updated = []
+        
+        for observation in observations:
+            if observation != {} and observation["destination"].position == self.position:
+                queue = None
+                
+                if observation["direction"] == Vehicle.NORTH:
+                    queue = self.queue_n
+
+                elif observation["direction"] == Vehicle.WEST:
+                    queue = self.queue_w
+
+                elif observation["direction"] == Vehicle.SOUTH:
+                    queue = self.queue_s
+
+                elif observation["direction"] == Vehicle.EAST:
+                    queue = self.queue_e
+                    
+                destination_x = queue.tail_position[0]
+                destination_y = queue.tail_position[1]
+                time_until_arrival = math.hypot(destination_x-observation["position"][0], destination_y-observation["position"][1])/observation["speed"]
+                queue.arrival_timestamps += [queue.time+time_until_arrival]
+                
+            elif observation != {}:
+                updated += [observation]
+                
+        return updated
+        
+    def run_event(self, delta_t: float):
+        self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate())
+        self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate())
+        self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate())
+        self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate())
+        
+        self.time_step(delta_t=delta_t)
+        
+    def get_stats(self) -> dict:
+        """
+        Returns all the estimation stats.
+        """
+        stats = {}
+        
+        n_queue_length, n_departures, n_arrivals = self.queue_n.get_stats()
+        w_queue_length, w_departures, w_arrivals = self.queue_w.get_stats()
+        s_queue_length, s_departures, s_arrivals = self.queue_s.get_stats()
+        e_queue_length, e_departures, e_arrivals = self.queue_e.get_stats()
+
+        stats["N"] = {}
+        stats["N"]["queue_length"] = n_queue_length
+        stats["N"]["arrivals"] = n_arrivals
+        stats["N"]["departures"] = n_departures
+
+        stats["W"] = {}
+        stats["W"]["queue_length"] = w_queue_length
+        stats["W"]["arrivals"] = w_arrivals
+        stats["W"]["departures"] = w_departures
+
+        stats["S"] = {}
+        stats["S"]["queue_length"] = s_queue_length
+        stats["S"]["arrivals"] = s_arrivals
+        stats["S"]["departures"] = s_departures
+
+        stats["E"] = {}
+        stats["E"]["queue_length"] = e_queue_length
+        stats["E"]["arrivals"] = e_arrivals
+        stats["E"]["departures"] = e_departures
+            
+        return stats

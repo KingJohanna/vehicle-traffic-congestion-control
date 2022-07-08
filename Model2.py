@@ -142,6 +142,7 @@ class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
         self.position = (0.,0.)
         self.length = 0.
         self.time = 0.
+        self.observable = False
         
 class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
     def __init__(self):
@@ -167,3 +168,4 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         self.grid_inds = []
         self.vehicles = set()
         self.time = 0.
+        self.observations = []

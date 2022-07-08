@@ -86,6 +86,8 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         
         if self.time_since_arrival > 0:
             self.arrivals += [self.arrivals[-1]]
+        else:
+            self.arrivals += [self.arrivals[-1]+1]
         
         if saturation_rate <= 0:
             self.time_served = 0
@@ -140,6 +142,7 @@ class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
         self.position = (0.,0.)
         self.length = 0.
         self.time = 0.
+        self.observable = False
         
 class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
     def __init__(self):
@@ -165,3 +168,4 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         self.grid_inds = []
         self.vehicles = set()
         self.time = 0.
+        self.observations = []
