@@ -36,14 +36,16 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
         """
+        self.update_vehicle_positions(delta_t=delta_t)
+        
         arriving_vehicle = None
         departing_vehicle = None
         
         if random.random() < self.arrival_probability(delta_t=delta_t):
             arriving_vehicle = Vehicle.Vehicle()
             arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
-            if animate:
-                arriving_vehicle.initialize_plot(plt=plt)
+            #if animate:
+                #arriving_vehicle.initialize_plot(plt, markersize=8/len(self.grid_inds))
             self.queue.append(arriving_vehicle)
             self.time_since_arrival = 0
             self.arrivals += [self.arrivals[-1]+1]
@@ -56,6 +58,7 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
                 self.time_served = 0
                 self.departures += [self.departures[-1]+1]
                 self.tot_wait_time += departing_vehicle.wait_time
+                departing_vehicle.wait_time = 0
                 departing_vehicle.accelerate()
             else:
                 self.departures += [self.departures[-1]]
@@ -89,6 +92,8 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
         """ 
+        self.update_vehicle_positions(delta_t=delta_t)
+        
         departing_vehicle = None
         
         if self.time_since_arrival > 0:
@@ -143,6 +148,9 @@ class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
         self.length = 0.
         self.time = 0.
         self.observable = False
+        self.estimator = None
+        self.horizontal_crossers = []
+        self.vertical_crossers = []
         
 class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
     def __init__(self):
