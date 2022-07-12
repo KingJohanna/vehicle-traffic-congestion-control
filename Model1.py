@@ -66,6 +66,7 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
+        self.queue.update_tail_position()
         
         return arriving_vehicle, departing_vehicle
     

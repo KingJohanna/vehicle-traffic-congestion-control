@@ -27,13 +27,16 @@ class Vehicle:
         self.length = length
         self.tail_position = (position[0]-direction[0]*length, position[1]-direction[1]*length)
         
+    def update_position(self, new_position: (float, float)):
+        self.position = new_position
+        self.tail_position = (self.position[0]-self.direction[0]*self.length, self.position[1]-self.direction[1]*self.length)
+        
     def time_step(self, delta_t: float):
         x = self.position[0]
         x_dir = self.direction[0]
         y = self.position[1]
         y_dir = self.direction[1]
-        self.position = (x+x_dir*self.speed*delta_t, y+y_dir*self.speed*delta_t)
-        self.tail_position = (self.position[0]-self.direction[0]*self.length, self.position[1]-self.direction[1]*self.length)
+        self.update_position(new_position=(x+x_dir*self.speed*delta_t, y+y_dir*self.speed*delta_t))
         self.time += delta_t
         
         if self.speed <= 0:
@@ -67,11 +70,11 @@ class Vehicle:
         self.wait_time = 0.
         self.speed = self.full_speed
         
-    def initialize_plot(self, plt, markersize: float) -> None:
-        self.visual, = plt.plot([], [], 'bo', markersize = markersize)
+    def initialize_plot(self, plt, linewidth: float) -> None:
+        self.visual, = plt.plot([], [], 'b-', linewidth=linewidth)
         
     def update_plot(self) -> None:
-        self.visual.set_data(self.position)
+        self.visual.set_data([self.position[0], self.tail_position[0]],[self.position[1], self.tail_position[1]])
         
     def remove_plot(self) -> None:
         self.visual.set_data(np.inf, np.inf)

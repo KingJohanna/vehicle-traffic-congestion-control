@@ -61,10 +61,10 @@ class Queue:
         """
         if vehicle not in self.vehicles:
             vehicle.stop()
+            vehicle.update_position(new_position=(self.tail_position[0]-2*vehicle.direction[0], self.tail_position[1]-2*vehicle.direction[1]))
             self.vehicles += [vehicle]
             self.queue_length = len(self.vehicles)
             self.update_tail_position()
-            vehicle.position = (self.tail_position[0]+vehicle.direction[0]*vehicle.length, self.tail_position[1]+vehicle.direction[1]*vehicle.length)
              
             return True
         return False
@@ -85,8 +85,12 @@ class Queue:
         return None
     
     def update_tail_position(self) -> None:
-        tot_length = sum([vehicle.length for vehicle in self.vehicles])
-        self.tail_position = (self.head_position[0]-self.direction[0]*tot_length, self.head_position[1]-self.direction[1]*tot_length)
+        #tot_length = sum([vehicle.length+2 for vehicle in self.vehicles])
+        #self.tail_position = (self.head_position[0]-self.direction[0]*tot_length, self.head_position[1]-self.direction[1]*tot_length)
+        if len(self.vehicles) > 0:
+            self.tail_position = self.vehicles[-1].tail_position
+        else:
+            self.tail_position = self.head_position
         
 class ConnectedQueue(Queue):
     def __init__(self):
@@ -211,18 +215,18 @@ class QueueSimulator:
         self.time_served += delta_t
         
     def update_vehicle_positions(self, delta_t: float) -> None:
-        vehicle_tail_positions = [vehicle.tail_position for vehicle in self.queue.vehicles]
+        vehicle_tail_positions = [(vehicle.tail_position[0], vehicle.tail_position[1]) for vehicle in self.queue.vehicles]
         
         for i,vehicle in enumerate(self.queue.vehicles):
             if vehicle.direction == Vehicle.NORTH:
                 if i == 0:
                     if vehicle.position[1] > self.queue.head_position[1] - vehicle.full_speed*delta_t:
                         vehicle.stop()
-                        vehicle.position = self.queue.head_position
+                        vehicle.update_position(new_position=self.queue.head_position)
                     elif vehicle.speed <= 0 and vehicle.position != self.queue.head_position:
                         vehicle.accelerate()
                 elif i > 0:
-                    if vehicle.position[1] > vehicle_tail_positions[i-1][1] - vehicle.full_speed*delta_t:
+                    if vehicle.position[1] > vehicle_tail_positions[i-1][1] - vehicle.full_speed*delta_t - 2:
                         vehicle.stop()
                     else:
                         vehicle.accelerate()
@@ -231,11 +235,11 @@ class QueueSimulator:
                 if i == 0:
                     if vehicle.position[0] > self.queue.head_position[0] - vehicle.full_speed*delta_t:
                         vehicle.stop()
-                        vehicle.position = self.queue.head_position
+                        vehicle.update_position(new_position=self.queue.head_position)
                     elif vehicle.speed <= 0 and vehicle.position != self.queue.head_position:
                         vehicle.accelerate()
                 elif i > 0:
-                    if vehicle.position[0] > vehicle_tail_positions[i-1][0] - vehicle.full_speed*delta_t:
+                    if vehicle.position[0] > vehicle_tail_positions[i-1][0] - vehicle.full_speed*delta_t - 2:
                         vehicle.stop()
                     else:
                         vehicle.accelerate()
@@ -244,11 +248,11 @@ class QueueSimulator:
                 if i == 0:
                     if vehicle.position[1] < self.queue.head_position[1] + vehicle.full_speed*delta_t:
                         vehicle.stop()
-                        vehicle.position = self.queue.head_position
+                        vehicle.update_position(new_position=self.queue.head_position)
                     elif vehicle.speed <= 0 and vehicle.position != self.queue.head_position:
                         vehicle.accelerate()
                 elif i > 0:
-                    if vehicle.position[1] < vehicle_tail_positions[i-1][1] + vehicle.full_speed*delta_t:
+                    if vehicle.position[1] < vehicle_tail_positions[i-1][1] + vehicle.full_speed*delta_t + 2:
                         vehicle.stop()
                     else:
                         vehicle.accelerate()
@@ -257,11 +261,11 @@ class QueueSimulator:
                 if i == 0:
                     if vehicle.position[0] < self.queue.head_position[0] + vehicle.full_speed*delta_t:
                         vehicle.stop()
-                        vehicle.position = self.queue.head_position
+                        vehicle.update_position(new_position=self.queue.head_position)
                     elif vehicle.speed <= 0 and vehicle.position != self.queue.head_position:
                         vehicle.accelerate()
                 elif i > 0:
-                    if vehicle.position[0] < vehicle_tail_positions[i-1][0] + vehicle.full_speed*delta_t:
+                    if vehicle.position[0] < vehicle_tail_positions[i-1][0] + vehicle.full_speed*delta_t + 2:
                         vehicle.stop()
                     else:
                         vehicle.accelerate()
@@ -271,13 +275,13 @@ class QueueSimulator:
         Adjusts the position of the vehicle to this queue.
         """
         if self.queue.direction == Vehicle.NORTH:
-            vehicle.position = (self.queue.head_position[0], vehicle.position[1])
+            vehicle.update_position(new_position=(self.queue.head_position[0], vehicle.position[1]))
         elif self.queue.direction == Vehicle.WEST:
-            vehicle.position = (vehicle.position[0], self.queue.head_position[1])
+            vehicle.update_position(new_position=(vehicle.position[0], self.queue.head_position[1]))
         elif self.queue.direction == Vehicle.SOUTH:
-            vehicle.position = (self.queue.head_position[0], vehicle.position[1])
+            vehicle.update_position(new_position=(self.queue.head_position[0], vehicle.position[1]))
         elif self.queue.direction == Vehicle.WEST:
-            vehicle.position = (vehicle.position[0], self.queue.head_position[1])
+            vehicle.update_position(new_position=(vehicle.position[0], self.queue.head_position[1]))
         
     def avg_wait_time(self) -> float:
         """
@@ -367,9 +371,9 @@ class FourWayIntersectionSimulator:
             The southbound queue.
         queue_e : QueueSimulator
             The eastbound queue.
-        traffic_light_ns : TrafficLight.SimpleTrafficLight
+        traffic_light_ns : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the north- and southbound queues.
-        traffic_light_ew : TrafficLight.SimpleTrafficLight
+        traffic_light_ew : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the east- and westbound queues.
         position : (float, float)
             The centerpoint of the intersection.
@@ -414,13 +418,13 @@ class FourWayIntersectionSimulator:
         if queue_e != None:
             self.queue_e = queue_e
             
-    def set_traffic_lights(self, traffic_light_ns: TrafficLight.SimpleTrafficLight, traffic_light_ew: TrafficLight.SimpleTrafficLight) -> None:
+    def set_traffic_lights(self, traffic_light_ns: TrafficLight.PeriodicTrafficLight, traffic_light_ew: TrafficLight.PeriodicTrafficLight) -> None:
         """
         Sets the traffic lights of the intersection.
         
-        traffic_light_ns : TrafficLight.SimpleTrafficLight
+        traffic_light_ns : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the north- and southbound queues.
-        traffic_light_ew : TrafficLight.SimpleTrafficLight
+        traffic_light_ew : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the east- and westbound queues.
         """
         self.traffic_light_ns = traffic_light_ns
@@ -482,7 +486,7 @@ class FourWayIntersectionSimulator:
         """
         horizontal_crossers = []
         for vehicle in self.horizontal_crossers:
-            if vehicle.position[0] > self.queue_e.queue.head_position[0] and vehicle.position[0] < self.queue_w.queue.head_position[0]:
+            if (vehicle.direction == Vehicle.EAST and vehicle.position[0] < self.queue_w.queue.head_position[0]) or (vehicle.direction == Vehicle.WEST and vehicle.position[0] > self.queue_e.queue.head_position[0]):
                 horizontal_crossers += [vehicle]
         
         self.horizontal_crossers = horizontal_crossers
@@ -492,12 +496,13 @@ class FourWayIntersectionSimulator:
             
         vertical_crossers = []
         for vehicle in self.vertical_crossers:
-            if vehicle.position[1] < self.queue_s.queue.head_position[1] and vehicle.position[1] > self.queue_n.queue.head_position[1]:
+            if (vehicle.direction == Vehicle.NORTH and vehicle.position[1] < self.queue_s.queue.head_position[1]) or (vehicle.direction == Vehicle.SOUTH and vehicle.position[1] > self.queue_n.queue.head_position[1]):
                 vertical_crossers += [vehicle]
         
         self.vertical_crossers = vertical_crossers
         v_free = 1
         if len(vertical_crossers) > 0:
+            #plt.text("busy")
             v_free = 0
         
         arrivals = []
@@ -590,7 +595,7 @@ class IntersectionNetworkSimulator:
         self.time = 0.
         self.observations = []
         
-    def initialize(self, grid_dimensions: (int,int), grid_distance: float):
+    def initialize(self, grid_dimensions: (int,int), grid_distance=250):
         """
         Initializes the IntersectionNetworkSimulator instance.
         
@@ -640,15 +645,15 @@ class IntersectionNetworkSimulator:
         """
         self.intersections[grid_ind].initialize_queues(avg_departure_time=avg_departure_time, avg_arrival_time_n=avg_arrival_time_n, avg_arrival_time_w=avg_arrival_time_w, avg_arrival_time_s=avg_arrival_time_s, avg_arrival_time_e=avg_arrival_time_e)
     
-    def set_traffic_lights(self, grid_ind: (int,int), traffic_light_ns: TrafficLight.SimpleTrafficLight, traffic_light_ew: TrafficLight.SimpleTrafficLight) -> None:
+    def set_traffic_lights(self, grid_ind: (int,int), traffic_light_ns: TrafficLight.PeriodicTrafficLight, traffic_light_ew: TrafficLight.PeriodicTrafficLight) -> None:
         """
         Sets the traffic lights of the intersection.
         
         grid_ind : (int,int)
             The grid index of the intersection.
-        traffic_light_ns : TrafficLight.SimpleTrafficLight
+        traffic_light_ns : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the north- and southbound queues.
-        traffic_light_ew : TrafficLight.SimpleTrafficLight
+        traffic_light_ew : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the east- and westbound queues.
         """
         self.intersections[grid_ind].set_traffic_lights(traffic_light_ns=traffic_light_ns, traffic_light_ew=traffic_light_ew)
@@ -748,7 +753,7 @@ class IntersectionNetworkSimulator:
             
             if animate:
                 if vehicle.visual == None:
-                    vehicle.initialize_plot(plt, markersize=2/math.log(math.sqrt(5*len(self.grid_inds))))
+                    vehicle.initialize_plot(plt, linewidth=3/math.log(math.sqrt(5*len(self.grid_inds))))
                 vehicle.update_plot()
             
             if self.out_of_bounds(vehicle):
@@ -881,24 +886,28 @@ class IntersectionNetworkSimulator:
             stats[grid_ind]["N"]["arrivals"] = n_arrivals
             stats[grid_ind]["N"]["departures"] = n_departures
             stats[grid_ind]["N"]["wait_time"] = n_wait_time
+            stats[grid_ind]["N"]["avg_queue_length"] = sum(n_queue_length)/len(n_queue_length)
 
             stats[grid_ind]["W"] = {}
             stats[grid_ind]["W"]["queue_length"] = w_queue_length
             stats[grid_ind]["W"]["arrivals"] = w_arrivals
             stats[grid_ind]["W"]["departures"] = w_departures
             stats[grid_ind]["W"]["wait_time"] = w_wait_time
+            stats[grid_ind]["W"]["avg_queue_length"] = sum(w_queue_length)/len(w_queue_length)
             
             stats[grid_ind]["S"] = {}
             stats[grid_ind]["S"]["queue_length"] = s_queue_length
             stats[grid_ind]["S"]["arrivals"] = s_arrivals
             stats[grid_ind]["S"]["departures"] = s_departures
             stats[grid_ind]["S"]["wait_time"] = s_wait_time
+            stats[grid_ind]["S"]["avg_queue_length"] = sum(s_queue_length)/len(s_queue_length)
 
             stats[grid_ind]["E"] = {}
             stats[grid_ind]["E"]["queue_length"] = e_queue_length
             stats[grid_ind]["E"]["arrivals"] = e_arrivals
             stats[grid_ind]["E"]["departures"] = e_departures
             stats[grid_ind]["E"]["wait_time"] = e_wait_time
+            stats[grid_ind]["E"]["avg_queue_length"] = sum(e_queue_length)/len(e_queue_length)
             
         return stats
     
@@ -920,7 +929,7 @@ class IntersectionNetworkSimulator:
             The figure size of the plot.
         start_time : (float, float) (optional)
             The start time [s] of the plot. Defaults to 0.
-        traffic_light : TrafficLight.SimpleTrafficLight (optional)
+        traffic_light : TrafficLight.PeriodicTrafficLight (optional)
             The traffic light controlling the queue.
         """
         fig, axs = plt.subplots(3, figsize=fig_size, dpi=90, sharex=True)
@@ -1082,9 +1091,9 @@ class FourWayIntersectionEstimator:
             The southbound queue.
         queue_e : QueueSimulator
             The eastbound queue.
-        traffic_light_ns : TrafficLight.SimpleTrafficLight
+        traffic_light_ns : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the north- and southbound queues.
-        traffic_light_ew : TrafficLight.SimpleTrafficLight
+        traffic_light_ew : TrafficLight.PeriodicTrafficLight
             The traffic light controlling the east- and westbound queues.
         position : (float, float)
             The centerpoint of the intersection.

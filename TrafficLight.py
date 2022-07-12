@@ -33,7 +33,7 @@ class TrafficLight:
         
         ax.fill_between(time, y_lim[0], y_lim[1], where=self.service_history[:len(time)], facecolor='g', alpha=0.2)
 
-class SimpleTrafficLight(TrafficLight):
+class PeriodicTrafficLight(TrafficLight):
     def __init__(self):
         """
         period : float
