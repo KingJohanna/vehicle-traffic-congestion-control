@@ -29,7 +29,8 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
         """     
-        self.update_vehicle_positions(delta_t=delta_t)
+        #self.queue.update_tail_position()
+        self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         arriving_vehicle = None
         departing_vehicle = None
@@ -37,8 +38,6 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         if self.time >= self.next_arrival_timestamp:
             arriving_vehicle = Vehicle.Vehicle()
             arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
-            #if animate:
-                #arriving_vehicle.initialize_plot(plt, markersize=8/len(self.grid_inds))
             self.queue.append(arriving_vehicle)
             self.time_since_arrival = 0
             self.arrivals += [self.arrivals[-1]+1]
@@ -46,10 +45,12 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         else:
             self.arrivals += [self.arrivals[-1]]
         
+        self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
+        
         if saturation_rate <= 0:
             self.time_served = 0
         
-        if self.time_served >= self.next_time_to_depart:
+        if saturation_rate > 0:
             departing_vehicle = self.queue.remove()
             if departing_vehicle != None:
                 self.time_served = 0
@@ -66,7 +67,7 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
-        self.queue.update_tail_position()
+        #self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         return arriving_vehicle, departing_vehicle
     
@@ -86,8 +87,6 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
         """ 
-        self.update_vehicle_positions(delta_t=delta_t)
-        
         departing_vehicle = None
         
         if self.time_since_arrival > 0:
@@ -98,12 +97,15 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         if saturation_rate <= 0:
             self.time_served = 0
         
-        if self.time_served >= self.next_time_to_depart:
+        self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
+        
+        if saturation_rate > 0:
             departing_vehicle = self.queue.remove()
             if departing_vehicle != None:
                 self.time_served = 0
                 self.departures += [self.departures[-1]+1]
                 self.tot_wait_time += departing_vehicle.wait_time
+                departing_vehicle.wait_time = 0
                 departing_vehicle.accelerate()
                 self.next_departure_time = self.time_to_depart()
             else:
@@ -114,6 +116,7 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
+        #self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         return None, departing_vehicle
     
@@ -177,4 +180,8 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         self.grid_inds = []
         self.vehicles = set()
         self.time = 0.
+        self.tot_wait_time = 0.
+        self.exits = [0]
         self.observations = []
+        self.avg_wait_time = []
+        self.observable_intersection_grid_inds = []

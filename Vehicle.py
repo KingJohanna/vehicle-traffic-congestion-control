@@ -67,7 +67,6 @@ class Vehicle:
         self.speed = 0
             
     def accelerate(self) -> None:
-        self.wait_time = 0.
         self.speed = self.full_speed
         
     def initialize_plot(self, plt, linewidth: float) -> None:
@@ -77,4 +76,5 @@ class Vehicle:
         self.visual.set_data([self.position[0], self.tail_position[0]],[self.position[1], self.tail_position[1]])
         
     def remove_plot(self) -> None:
-        self.visual.set_data(np.inf, np.inf)
+        if self.visual != None:
+            self.visual.set_data(np.inf, np.inf)

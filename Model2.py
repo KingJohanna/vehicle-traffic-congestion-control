@@ -36,7 +36,7 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
         """
-        self.update_vehicle_positions(delta_t=delta_t)
+        self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         arriving_vehicle = None
         departing_vehicle = None
@@ -93,7 +93,7 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
         """ 
-        self.update_vehicle_positions(delta_t=delta_t)
+        self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         departing_vehicle = None
         
@@ -171,10 +171,14 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         """
         self.grid_dimensions = (0,0)
         self.grid_distance = 0.
-        self.edge_type = SingleQueueSimulator
+        self.edge_type = MM1QueueSimulator
         self.intersection_type = FourWayIntersectionSimulator
         self.intersections = None
         self.grid_inds = []
         self.vehicles = set()
         self.time = 0.
+        self.tot_wait_time = 0.
+        self.exits = [0]
         self.observations = []
+        self.avg_wait_time = []
+        self.observable_intersection_grid_inds = []

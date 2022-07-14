@@ -8,12 +8,14 @@ class TrafficLight:
         self.service_history = [self.service]
         self.positions = [(0,0), (0,0)]
         self.time = 0
+        self.adaptive = False
         
     def time_step(self, delta_t: float) -> None:
         """
         Elapses time by one time-step
         """
         self.time += delta_t
+        self.service = self.saturation_rate()
         self.service_history += [self.service]
         
     def initialize_plot(self, plt) -> None:
@@ -32,6 +34,48 @@ class TrafficLight:
         y_lim = ax.get_ylim()
         
         ax.fill_between(time, y_lim[0], y_lim[1], where=self.service_history[:len(time)], facecolor='g', alpha=0.2)
+        
+    def reset(self):
+        self.service = self.saturation_rate()
+        self.service_history = [self.service]
+        self.time = 0.
+        
+        return self
+        
+class TrafficLightMirror(TrafficLight):
+    def __init__(self):
+        """
+        traffic_light : TrafficLight
+            The traffic light instance to mirror.
+        time : float
+            The current simulation time [s].
+        """
+        self.traffic_light = None
+        self.time = 0.
+        self.visuals = [None, None]
+        self.positions = [(0,0), (0,0)]
+        self.service = False
+        self.service_history = []
+        self.adaptive = False
+        
+    def initialize(self, traffic_light: TrafficLight) -> None:
+        """
+        Initializes the MemoryLessTrafficLightMirror instance.
+        
+        traffic_light : MemoryLessTrafficLight
+            The traffic light instance to mirror.
+        """
+        self.traffic_light = traffic_light
+        self.service = not traffic_light.service
+        self.service_history += [self.service]
+        
+    def saturation_rate(self, delta_t=0.):
+        """
+        Returns the current saturation rate.
+        """
+        self.service = float(not self.traffic_light.service)
+        
+        return float(not self.traffic_light.service)
 
 class PeriodicTrafficLight(TrafficLight):
     def __init__(self):
@@ -43,13 +87,15 @@ class PeriodicTrafficLight(TrafficLight):
         """
         self.period = 0.
         self.time_delay = 0.
+        self.green_ratio = 0.
         self.time = 0.
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
         self.service = False
         self.service_history = [self.service]
+        self.adaptive = False
         
-    def initialize(self, period: float, time_delay: float) -> None:
+    def initialize(self, period: float, time_delay: float, green_ratio=0.5) -> None:
         """
         Initializes the SimpleTrafficLight instance.
         
@@ -60,6 +106,7 @@ class PeriodicTrafficLight(TrafficLight):
         """
         self.period = period
         self.time_delay = time_delay
+        self.green_ratio = green_ratio
         
     def saturation_rate(self, delta_t=0.) -> float:
         """
@@ -68,11 +115,9 @@ class PeriodicTrafficLight(TrafficLight):
         t : float
             The current time [s].
         """
-        if np.sin(2*np.pi*(self.time-self.time_delay)/self.period) > 0:
-            self.service = 1
+        if ((self.time-self.time_delay) % self.period)/self.period < self.green_ratio:
             return 1
         else:
-            self.service = 0
             return 0
             
 class MemoryLessTrafficLight(TrafficLight):
@@ -94,6 +139,7 @@ class MemoryLessTrafficLight(TrafficLight):
         self.time = 0.
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
+        self.adaptive = False
         
     def initialize(self, green_to_red_rate: float, red_to_green_rate: float) -> None:
         """
@@ -129,36 +175,16 @@ class MemoryLessTrafficLight(TrafficLight):
         
         return self.service
     
-class MemoryLessTrafficLightMirror(TrafficLight):
-    def __init__(self):
-        """
-        traffic_light : MemoryLessTrafficLight
-            The traffic light instance to mirror.
-        time : float
-            The current simulation time [s].
-        """
-        self.traffic_light = None
-        self.time = 0.
-        self.visuals = [None, None]
-        self.positions = [(0,0), (0,0)]
-        self.service = False
-        self.service_history = []
-        
-    def initialize(self, traffic_light: MemoryLessTrafficLight) -> None:
-        """
-        Initializes the MemoryLessTrafficLightMirror instance.
-        
-        traffic_light : MemoryLessTrafficLight
-            The traffic light instance to mirror.
-        """
-        self.traffic_light = traffic_light
-        self.service = not traffic_light.service
-        self.service_history += [self.service]
-        
+class AdaptiveTrafficLight(TrafficLight):
+    def initialize(self):
+        self.adaptive = True
+    
+    def sense(self, queue_length: int, opposite_queue_length: int) -> None:
+        if queue_length > opposite_queue_length:
+            if opposite_queue_length == 0 or queue_length > 2*opposite_queue_length:
+                self.service = 1
+        else:
+            self.service = 0
+    
     def saturation_rate(self, delta_t=0.):
-        """
-        Returns the current saturation rate.
-        """
-        self.service = float(not self.traffic_light.service)
-        
-        return float(not self.traffic_light.service)
+        return self.service
