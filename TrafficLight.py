@@ -176,15 +176,60 @@ class MemoryLessTrafficLight(TrafficLight):
         return self.service
     
 class AdaptiveTrafficLight(TrafficLight):
-    def initialize(self):
+    global EMPTY, EMPTY_OTHER, EMPTY_HALFWAY, EMPTY_OTHER_HALFWAY, WAIT
+    
+    EMPTY = 0
+    EMPTY_OTHER = 1
+    EMPTY_HALFWAY = 2
+    EMPTY_OTHER_HALFWAY = 3
+    WAIT = 4
+    
+    def __init__(self):
+        self.visuals = [None, None]
+        self.service = False
+        self.service_history = [self.service]
+        self.positions = [(0,0), (0,0)]
+        self.time = 0
         self.adaptive = True
+        self.initial_length = 0
+        self.case = WAIT
     
     def sense(self, queue_length: int, opposite_queue_length: int) -> None:
-        if queue_length > opposite_queue_length:
-            if opposite_queue_length == 0 or queue_length > 2*opposite_queue_length:
-                self.service = 1
-        else:
-            self.service = 0
+        if self.case == WAIT: # Queue has been emptied, check if traffic light should switch
+            if opposite_queue_length > 0:
+                self.case = EMPTY_OTHER
+            elif queue_length > 0:
+                self.case = EMPTY
+                
+        if self.case in [EMPTY, EMPTY_OTHER]: # Check if the other queue has become too long while emptying current queue
+            if queue_length >= 2*(opposite_queue_length+2):
+                self.case = EMPTY_HALFWAY
+                self.initial_length = queue_length
+            elif opposite_queue_length >= 2*(queue_length+2):
+                self.case = EMPTY_OTHER_HALFWAY
+                self.initial_length = opposite_queue_length
+        
+        if self.case == EMPTY: # Check if current objective has been completed
+            if queue_length <= 0:
+                self.case = WAIT
+            else:
+                self.service = True
+        elif self.case == EMPTY_HALFWAY:
+            if queue_length <= self.initial_length/2:
+                self.case = EMPTY_OTHER
+            else:
+                self.service = True
+        elif self.case == EMPTY_OTHER:
+            if opposite_queue_length <= 0:
+                self.case = WAIT
+            else:
+                self.service = False
+        elif self.case == EMPTY_OTHER_HALFWAY:
+            if opposite_queue_length <= self.initial_length/2:
+                self.case = EMPTY
+            else:
+                self.service = False
+            
     
     def saturation_rate(self, delta_t=0.):
         return self.service
