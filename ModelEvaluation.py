@@ -138,13 +138,13 @@ class MultiEvaluator:
             axs[3].plot(t,evaluator.average[grid_ind]["W"]["queue_length"], label=label)
 
         axs[0].set(ylabel="avg. queue length")
-        axs[0].set_title("Average northbound queue length over time")
+        axs[0].set_title("Average length of northbound queue over time")
         axs[1].set(ylabel="avg. queue length")
-        axs[1].set_title("Average eastbound queue length over time")
+        axs[1].set_title("Average length of eastbound queue over time")
         axs[2].set(ylabel="avg. queue length")
-        axs[2].set_title("Average southbound queue length over time")
+        axs[2].set_title("Average length of southbound queue length")
         axs[3].set(xlabel="time [s]", ylabel="avg. queue length")
-        axs[3].set_title("Average westbound queue length over time")
+        axs[3].set_title("Average length of westbound queue over time")
         axs[0].legend()
         
         return fig,axs
@@ -188,7 +188,7 @@ class MultiEvaluator:
         axs[1].plot(labels, s_avg_queue_length, label="Southbound")
         axs[1].plot(labels, w_avg_queue_length, label="Westbound")
         axs[1].plot(labels, avg_queue_length, '--', label="All")
-        axs[1].set(xlabel="time [s]", ylabel="avg. wait time [s]")
+        axs[1].set(xlabel="time [s]", ylabel="parameter value")
         axs[1].set_title("Average queue length")
         
         axs[0].legend()

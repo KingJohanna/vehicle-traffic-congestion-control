@@ -28,6 +28,7 @@ class Queue:
             Rate at which vehicles depart from the queue [1/s].
         """
         self.vehicles = []
+        self.departing_vehicle = None
         self.direction = (0, 0)
         self.head_position = (0, 0)
         self.tail_position = (0, 0)
@@ -69,7 +70,6 @@ class Queue:
                 vehicle.update_position(new_position=(self.tail_position[0], self.tail_position[1]))
             self.vehicles += [vehicle]
             self.queue_length = len(self.vehicles)
-            self.update_tail_position()
              
             return True
         return False
@@ -85,17 +85,44 @@ class Queue:
                 self.vehicles.remove(departing_vehicle)
                 self.queue_length = len(self.vehicles)
                 self.update_tail_position()
-            
+                self.departing_vehicle = departing_vehicle
+                
                 return departing_vehicle
-        
-        self.update_tail_position()
         return None
     
     def update_tail_position(self) -> None:
-        #tot_length = sum([vehicle.length+2 for vehicle in self.vehicles])
-        #self.tail_position = (self.head_position[0]-self.direction[0]*tot_length, self.head_position[1]-self.direction[1]*tot_length)
         if len(self.vehicles) > 0:
             self.tail_position = self.vehicles[-1].tail_position
+            
+        elif self.departing_vehicle != None:
+            if self.departing_vehicle.direction == Vehicle.NORTH:
+                if self.departing_vehicle.tail_position[1] > self.head_position[1]:
+                    self.departing_vehicle = None
+                    self.tail_position = self.head_position
+                else:
+                    self.tail_position = (self.departing_vehicle.tail_position[0], self.departing_vehicle.tail_position[1]-2)
+                        
+            elif self.departing_vehicle.direction == Vehicle.EAST:
+                if self.departing_vehicle.tail_position[0] > self.head_position[0]:
+                    self.departing_vehicle = None
+                    self.tail_position = self.head_position
+                else:
+                    self.tail_position = (self.departing_vehicle.tail_position[0]-2, self.departing_vehicle.tail_position[1])
+                    
+            elif self.departing_vehicle.direction == Vehicle.SOUTH:
+                if self.departing_vehicle.tail_position[1] < self.head_position[1]:
+                    self.departing_vehicle = None
+                    self.tail_position = self.head_position
+                else:
+                    self.tail_position = (self.departing_vehicle.tail_position[0], self.departing_vehicle.tail_position[1]+2)
+                    
+            elif self.departing_vehicle.direction == Vehicle.WEST:
+                if self.departing_vehicle.tail_position[0] < self.head_position[0]:
+                    self.departing_vehicle = None
+                    self.tail_position = self.head_position
+                else:
+                    self.tail_position = (self.departing_vehicle.tail_position[0]+2, self.departing_vehicle.tail_position[1])
+                    
         else:
             self.tail_position = self.head_position
         
@@ -222,6 +249,8 @@ class QueueSimulator:
         self.time_served += delta_t
         
     def update_vehicle_positions(self, delta_t: float, saturation_rate: float) -> None:
+        self.queue.update_tail_position()
+        
         vehicle_tail_positions = [(vehicle.tail_position[0], vehicle.tail_position[1]) for vehicle in self.queue.vehicles]
         
         for i,vehicle in enumerate(self.queue.vehicles):

@@ -92,7 +92,7 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
             The time-step size [s].
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
-        """ 
+        """
         self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         departing_vehicle = None

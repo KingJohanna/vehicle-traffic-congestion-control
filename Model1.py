@@ -28,8 +28,7 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
             The time-step size [s].
         saturation_rate : float
             The current saturation rate. Determined by an external traffic light.
-        """     
-        #self.queue.update_tail_position()
+        """
         self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         arriving_vehicle = None
@@ -96,7 +95,7 @@ class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
         
         if saturation_rate <= 0:
             self.time_served = 0
-        
+
         self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         if saturation_rate > 0:
