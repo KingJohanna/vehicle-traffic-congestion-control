@@ -206,7 +206,7 @@ class MemoryLessTrafficLight(TrafficLight):
         return self.service
     
 class AdaptiveTrafficLight(TrafficLight):
-    global EMPTY, EMPTY_OTHER, EMPTY_HALFWAY, EMPTY_OTHER_HALFWAY, WAIT
+    global EMPTY, EMPTY_OTHER, EMPTY_MIDWAY, EMPTY_OTHER_MIDWAY, WAIT
     
     EMPTY = 0
     EMPTY_OTHER = 1
@@ -226,18 +226,72 @@ class AdaptiveTrafficLight(TrafficLight):
         self.num_switches = [0]
         self.switches = [0]
         self.sensor_depth = 0
+        self.rule = 0
         
-    def initialize(self, sensor_depth: int):
+    def initialize(self, sensor_depth: int, rule=1):
         self.sensor_depth = sensor_depth
+        self.rule = rule
     
-    def sense(self, queue_length: int, opposite_queue_length: int) -> None:
-        if queue
+    def sense(self, queue_1, queue_2, opposite_queue_1, opposite_queue_2) -> None:
+        queue_length = queue_1.queue.queue_length + queue_2.queue.queue_length
+        opposite_queue_length = opposite_queue_1.queue.queue_length + opposite_queue_2.queue.queue_length
         
-        if queue_length >= 1:
-            if opposite_queue_length <= 0:
-                self.case = EMPTY
-            elif opposite_queue_length 
+        
+        if queue_length > self.sensor_depth:
+            queue_length = self.sensor_depth
+        if opposite_queue_length > self.sensor_depth:
+            opposite_queue_length = self.sensor_depth
             
+        if self.case == EMPTY_MIDWAY:
+            if queue_length <= self.objective_length:
+                self.case = EMPTY_OTHER
+        elif self.case == EMPTY_OTHER_MIDWAY:
+            if opposite_queue_length <= self.objective_length:
+                self.case = EMPTY
+        
+        if self.case == EMPTY:
+            if queue_length <= 0:
+                self.case = WAIT
+        elif self.case == EMPTY_OTHER:
+            if opposite_queue_length <= 0:
+                self.case = WAIT
+            
+        if self.case == WAIT:
+            if queue_length >= 1 and opposite_queue_length < self.sensor_depth:
+                if opposite_queue_length <= 0:
+                    self.case = EMPTY
+                elif opposite_queue_length == queue_length:
+                    self.case = EMPTY
+                elif opposite_queue_length >= queue_length:
+                    if opposite_queue_length-queue_length > 2:
+                        self.case = EMPTY_OTHER_MIDWAY
+                        self.objective_length = opposite_queue_length-queue_length
+                    else:
+                        self.case = EMPTY_OTHER
+            elif queue_length == 1 and opposite_queue_length >= self.sensor_depth:
+                self.case = EMPTY
+
+            if opposite_queue_length >= 1 and queue_length < self.sensor_depth:
+                if queue_length <= 0:
+                    self.case = EMPTY_OTHER
+                #elif queue_length == opposite_queue_length:
+                    #self.case = EMPTY_OTHER
+                elif queue_length >= opposite_queue_length:
+                    if queue_length-opposite_queue_length > 2:
+                        self.case = EMPTY_MIDWAY
+                        self.objective_length = queue_length-opposite_queue_length
+                    else:
+                        self.case = EMPTY
+            elif opposite_queue_length == 1 and queue_length >= self.sensor_depth:
+                self.case = EMPTY_OTHER
+                
+        self.update_service()
+        
+    def update_service(self):
+        if self.case in [EMPTY, EMPTY_MIDWAY]:
+            self.service = 1
+        elif self.case in [EMPTY_OTHER, EMPTY_OTHER_MIDWAY]:
+            self.service = 0
     
     def saturation_rate(self, delta_t=0.):
         return self.service

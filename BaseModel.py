@@ -81,7 +81,7 @@ class Queue:
         if len(self.vehicles) > 0:
             departing_vehicle = self.vehicles[0]
             
-            if departing_vehicle.position[0] >= self.head_position[0] and departing_vehicle.position[1] >= self.head_position[1]:
+            if (departing_vehicle.direction == Vehicle.NORTH and departing_vehicle.position[1] >= self.head_position[1]) or (departing_vehicle.direction == Vehicle.EAST and departing_vehicle.position[0] >= self.head_position[0]) or (departing_vehicle.direction == Vehicle.SOUTH and departing_vehicle.position[1] <= self.head_position[1]) or (departing_vehicle.direction == Vehicle.WEST and departing_vehicle.position[0] <= self.head_position[0]):
                 self.vehicles.remove(departing_vehicle)
                 self.queue_length = len(self.vehicles)
                 self.update_tail_position()
@@ -256,7 +256,7 @@ class QueueSimulator:
         for i,vehicle in enumerate(self.queue.vehicles):
             if vehicle.direction == Vehicle.NORTH:
                 if i == 0:
-                    if vehicle.position[1] > self.queue.head_position[1] - vehicle.full_speed*delta_t:
+                    if vehicle.position[1] >= self.queue.head_position[1]:
                         if saturation_rate <= 0:
                             vehicle.stop()
                         vehicle.update_position(new_position=self.queue.head_position)
@@ -272,7 +272,7 @@ class QueueSimulator:
                     
             elif vehicle.direction == Vehicle.EAST:
                 if i == 0:
-                    if vehicle.position[0] > self.queue.head_position[0] - vehicle.full_speed*delta_t:
+                    if vehicle.position[0] >= self.queue.head_position[0]:
                         if saturation_rate <= 0:
                             vehicle.stop()
                         vehicle.update_position(new_position=self.queue.head_position)
@@ -288,7 +288,7 @@ class QueueSimulator:
                     
             elif vehicle.direction == Vehicle.SOUTH:
                 if i == 0:
-                    if vehicle.position[1] < self.queue.head_position[1] + vehicle.full_speed*delta_t:
+                    if vehicle.position[1] <= self.queue.head_position[1]:
                         if saturation_rate <= 0:
                             vehicle.stop()
                         vehicle.update_position(new_position=self.queue.head_position)
@@ -304,7 +304,7 @@ class QueueSimulator:
                     
             elif vehicle.direction == Vehicle.WEST:
                 if i == 0:
-                    if vehicle.position[0] < self.queue.head_position[0] + vehicle.full_speed*delta_t:
+                    if vehicle.position[0] <= self.queue.head_position[0]:
                         if saturation_rate <= 0:
                             vehicle.stop()
                         vehicle.update_position(new_position=self.queue.head_position)
@@ -575,16 +575,16 @@ class FourWayIntersectionSimulator:
             self.avg_clearance_rate_ew += [0]
         
         if self.traffic_light_ns.adaptive:
-            self.traffic_light_ns.sense(queue_length=self.queue_n.queue.queue_length+self.queue_s.queue.queue_length, opposite_queue_length=self.queue_e.queue.queue_length+self.queue_w.queue.queue_length)
+            self.traffic_light_ns.sense(queue_1=self.queue_n, queue_2=self.queue_s, opposite_queue_1=self.queue_e, opposite_queue_2=self.queue_w)
         
         if self.traffic_light_ew.adaptive:
-            self.traffic_light_ew.sense(queue_length=self.queue_e.queue.queue_length+self.queue_w.queue.queue_length, opposite_queue_length=self.queue_n.queue.queue_length+self.queue_s.queue.queue_length)
+            self.traffic_light_ns.sense(queue_1=self.queue_e, queue_2=self.queue_w, opposite_queue_1=self.queue_n, opposite_queue_2=self.queue_s)
         
         horizontal_crossers = []
         for vehicle in self.horizontal_crossers:
-            if (vehicle.direction == Vehicle.EAST and vehicle.position[0] < self.queue_w.queue.head_position[0]) or (vehicle.direction == Vehicle.WEST and vehicle.position[0] > self.queue_e.queue.head_position[0]):
+            if (vehicle.direction == Vehicle.EAST and vehicle.tail_position[0] < self.queue_w.queue.head_position[0]) or (vehicle.direction == Vehicle.WEST and vehicle.tail_position[0] > self.queue_e.queue.head_position[0]):
                 horizontal_crossers += [vehicle]
-        
+    
         self.horizontal_crossers = horizontal_crossers
         h_free = 1
         if len(horizontal_crossers) > 0:
@@ -592,7 +592,7 @@ class FourWayIntersectionSimulator:
             
         vertical_crossers = []
         for vehicle in self.vertical_crossers:
-            if (vehicle.direction == Vehicle.NORTH and vehicle.position[1] < self.queue_s.queue.head_position[1]) or (vehicle.direction == Vehicle.SOUTH and vehicle.position[1] > self.queue_n.queue.head_position[1]):
+            if (vehicle.direction == Vehicle.NORTH and vehicle.tail_position[1] < self.queue_s.queue.head_position[1]) or (vehicle.direction == Vehicle.SOUTH and vehicle.tail_position[1] > self.queue_n.queue.head_position[1]):
                 vertical_crossers += [vehicle]
         
         self.vertical_crossers = vertical_crossers
@@ -979,13 +979,13 @@ class IntersectionNetworkSimulator:
         vehicle : Vehicle.Vehicle
             The vehicle being checked.
         """
-        if vehicle.direction == Vehicle.NORTH and vehicle.position[1] > self.intersections[(0,0)].queue_s.queue.tail_position[1]:
+        if vehicle.direction == Vehicle.NORTH and vehicle.tail_position[1] > self.intersections[(0,0)].queue_s.queue.tail_position[1]:
             return True
-        elif vehicle.direction == Vehicle.WEST and vehicle.position[0] < self.intersections[(0,0)].queue_e.queue.tail_position[0]:
+        elif vehicle.direction == Vehicle.WEST and vehicle.tail_position[0] < self.intersections[(0,0)].queue_e.queue.tail_position[0]:
             return True
-        elif vehicle.direction == Vehicle.SOUTH and vehicle.position[1] < self.intersections[self.grid_inds[-1]].queue_n.queue.tail_position[1]:
+        elif vehicle.direction == Vehicle.SOUTH and vehicle.tail_position[1] < self.intersections[self.grid_inds[-1]].queue_n.queue.tail_position[1]:
             return True
-        elif vehicle.direction == Vehicle.EAST and vehicle.position[0] > self.intersections[self.grid_inds[-1]].queue_w.queue.tail_position[0]:
+        elif vehicle.direction == Vehicle.EAST and vehicle.tail_position[0] > self.intersections[self.grid_inds[-1]].queue_w.queue.tail_position[0]:
             return True
         
         return False
