@@ -9,6 +9,8 @@ class TrafficLight:
         self.positions = [(0,0), (0,0)]
         self.time = 0
         self.adaptive = False
+        self.num_switches = [0]
+        self.switches = [0]
         
     def time_step(self, delta_t: float) -> None:
         """
@@ -17,6 +19,26 @@ class TrafficLight:
         self.time += delta_t
         self.service = self.saturation_rate()
         self.service_history += [self.service]
+        
+        self.num_switches += [self.num_switches[-1]]
+        
+        switch = self.service - self.service_history[-2]
+        self.switches += [switch]
+        
+        if switch > 0:
+            self.num_switches[-1] += 1
+        
+    def red_to_green_stats(self):
+        switches = [service-prev_service for service,prev_service in zip(self.service_history+[0],[0]+self.service_history)][:-2]
+        
+        res = [0]
+        for switch in switches:
+            if switch > 0:
+                res += [(res[-1]+switch)]
+            else:
+                res += [res[-1]]
+            
+        return res[1:], switches
         
     def initialize_plot(self, plt) -> None:
         for i,pos in enumerate(self.positions):
@@ -38,6 +60,8 @@ class TrafficLight:
     def reset(self):
         self.service = self.saturation_rate()
         self.service_history = [self.service]
+        self.num_switches = [0]
+        self.switches = [0]
         self.time = 0.
         
         return self
@@ -57,6 +81,8 @@ class TrafficLightMirror(TrafficLight):
         self.service = False
         self.service_history = []
         self.adaptive = False
+        self.num_switches = [0]
+        self.switches = [0]
         
     def initialize(self, traffic_light: TrafficLight) -> None:
         """
@@ -94,6 +120,8 @@ class PeriodicTrafficLight(TrafficLight):
         self.service = False
         self.service_history = [self.service]
         self.adaptive = False
+        self.num_switches = [0]
+        self.switches = [0]
         
     def initialize(self, period: float, time_delay: float, green_ratio=0.5) -> None:
         """
@@ -140,6 +168,8 @@ class MemoryLessTrafficLight(TrafficLight):
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
         self.adaptive = False
+        self.num_switches = [0]
+        self.switches = [0]
         
     def initialize(self, green_to_red_rate: float, red_to_green_rate: float) -> None:
         """
@@ -180,8 +210,8 @@ class AdaptiveTrafficLight(TrafficLight):
     
     EMPTY = 0
     EMPTY_OTHER = 1
-    EMPTY_HALFWAY = 2
-    EMPTY_OTHER_HALFWAY = 3
+    EMPTY_MIDWAY = 2
+    EMPTY_OTHER_MIDWAY = 3
     WAIT = 4
     
     def __init__(self):
@@ -191,44 +221,22 @@ class AdaptiveTrafficLight(TrafficLight):
         self.positions = [(0,0), (0,0)]
         self.time = 0
         self.adaptive = True
-        self.initial_length = 0
+        self.objective_length = 0
         self.case = WAIT
+        self.num_switches = [0]
+        self.switches = [0]
+        self.sensor_depth = 0
+        
+    def initialize(self, sensor_depth: int):
+        self.sensor_depth = sensor_depth
     
     def sense(self, queue_length: int, opposite_queue_length: int) -> None:
-        if self.case == WAIT: # Queue has been emptied, check if traffic light should switch
-            if opposite_queue_length > 0:
-                self.case = EMPTY_OTHER
-            elif queue_length > 0:
-                self.case = EMPTY
-                
-        if self.case in [EMPTY, EMPTY_OTHER]: # Check if the other queue has become too long while emptying current queue
-            if queue_length >= 2*(opposite_queue_length+2):
-                self.case = EMPTY_HALFWAY
-                self.initial_length = queue_length
-            elif opposite_queue_length >= 2*(queue_length+2):
-                self.case = EMPTY_OTHER_HALFWAY
-                self.initial_length = opposite_queue_length
+        if queue
         
-        if self.case == EMPTY: # Check if current objective has been completed
-            if queue_length <= 0:
-                self.case = WAIT
-            else:
-                self.service = True
-        elif self.case == EMPTY_HALFWAY:
-            if queue_length <= self.initial_length/2:
-                self.case = EMPTY_OTHER
-            else:
-                self.service = True
-        elif self.case == EMPTY_OTHER:
+        if queue_length >= 1:
             if opposite_queue_length <= 0:
-                self.case = WAIT
-            else:
-                self.service = False
-        elif self.case == EMPTY_OTHER_HALFWAY:
-            if opposite_queue_length <= self.initial_length/2:
                 self.case = EMPTY
-            else:
-                self.service = False
+            elif opposite_queue_length 
             
     
     def saturation_rate(self, delta_t=0.):

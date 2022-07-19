@@ -443,6 +443,15 @@ class FourWayIntersectionSimulator:
         self.estimator = None
         self.horizontal_crossers = []
         self.vertical_crossers = []
+        self.num_queued_vehicles = [0]
+        self.avg_clearance_rate_ns = []
+        self.avg_clearance_rate_ew = []
+        self.arrivals = 0
+        self.arrivals_on_green = 0
+        self.arrivals_on_green_rate = []
+        self.cum_clearance_rate_ns = 0.
+        self.cum_clearance_rate_ew = 0.
+        
         
     def set_queues(self, queue_n=None, queue_w=None, queue_s=None, queue_e=None) -> None:
         """
@@ -532,6 +541,39 @@ class FourWayIntersectionSimulator:
         delta_t : float
             The time-step size.
         """
+        self.num_queued_vehicles += [self.queue_n.queue.queue_length+self.queue_e.queue.queue_length+self.queue_s.queue.queue_length+self.queue_w.queue.queue_length]
+        if self.arrivals > 0:
+            self.arrivals_on_green_rate += [self.arrivals_on_green/self.arrivals]
+        else:
+            self.arrivals_on_green_rate += [0]
+        
+        tot_switches_ns, switches_ns = self.traffic_light_ns.num_switches, self.traffic_light_ns.switches
+        
+        if len(tot_switches_ns) > 0 and tot_switches_ns[-1] > 1 and switches_ns[-1] > 0:
+            #print(self.time, self.traffic_light_ns.time)
+            switch_inds = list(np.array(range(int(round(self.time/delta_t,3))+1))[list(map(lambda x: True if x>0 else False, switches_ns))])
+            duration = delta_t*(switch_inds[-1]-switch_inds[-2])
+            growth = self.num_queued_vehicles[switch_inds[-1]]-self.num_queued_vehicles[switch_inds[-2]]
+            self.cum_clearance_rate_ns += growth/duration
+             
+        if len(tot_switches_ns) > 0 and tot_switches_ns[-1] > 2:
+            self.avg_clearance_rate_ns += [self.cum_clearance_rate_ns/(tot_switches_ns[-1]-1)]
+        else:
+            self.avg_clearance_rate_ns += [0]
+        
+        tot_switches_ew, switches_ew = self.traffic_light_ew.num_switches, self.traffic_light_ew.switches
+        
+        if len(tot_switches_ew) > 0 and tot_switches_ew[-1] > 1 and switches_ew[-1] > 0:
+            switch_inds = list(np.array(range(int(round(self.time/delta_t,3))+1))[list(map(lambda x: True if x>0 else False, switches_ew))])
+            duration = delta_t*(switch_inds[-1]-switch_inds[-2])
+            growth = self.num_queued_vehicles[switch_inds[-1]]-self.num_queued_vehicles[switch_inds[-2]]
+            self.cum_clearance_rate_ew += growth/duration
+            
+        if len(tot_switches_ew) > 0 and tot_switches_ew[-1] > 2:
+            self.avg_clearance_rate_ew += [self.cum_clearance_rate_ew/(tot_switches_ew[-1]-1)]
+        else:
+            self.avg_clearance_rate_ew += [0]
+        
         if self.traffic_light_ns.adaptive:
             self.traffic_light_ns.sense(queue_length=self.queue_n.queue.queue_length+self.queue_s.queue.queue_length, opposite_queue_length=self.queue_e.queue.queue_length+self.queue_w.queue.queue_length)
         
@@ -585,16 +627,31 @@ class FourWayIntersectionSimulator:
             
         if arriving_vehicle_n != None:
             arrivals += [arriving_vehicle_n]
+            self.arrivals += 1
+            
+            if self.traffic_light_ns.saturation_rate() > 0:
+                self.arrivals_on_green += 1
             
         if arriving_vehicle_w != None:
             arrivals += [arriving_vehicle_w]
+            self.arrivals += 1
+            
+            if self.traffic_light_ew.saturation_rate() > 0:
+                self.arrivals_on_green += 1
             
         if arriving_vehicle_s != None:
             arrivals += [arriving_vehicle_s]
+            self.arrivals += 1
+            
+            if self.traffic_light_ns.saturation_rate() > 0:
+                self.arrivals_on_green += 1
             
         if arriving_vehicle_e != None:
             arrivals += [arriving_vehicle_e]
-        
+            self.arrivals += 1
+            
+            if self.traffic_light_ew.saturation_rate() > 0:
+                self.arrivals_on_green += 1
         
         self.traffic_light_ns.time_step(delta_t=delta_t)
         self.traffic_light_ew.time_step(delta_t=delta_t)
@@ -986,7 +1043,14 @@ class IntersectionNetworkSimulator:
             s_queue_length, s_departures, s_arrivals, s_wait_time = self.intersections[grid_ind].queue_s.get_stats()
             e_queue_length, e_departures, e_arrivals, e_wait_time = self.intersections[grid_ind].queue_e.get_stats()
             
+            
+            
             stats[grid_ind] = {}
+            stats[grid_ind]["num_queued_vehicles"] = self.intersections[grid_ind].num_queued_vehicles[1:]
+            stats[grid_ind]["avg_clearance_rate_ns"] = self.intersections[grid_ind].avg_clearance_rate_ns
+            stats[grid_ind]["avg_clearance_rate_ew"] = self.intersections[grid_ind].avg_clearance_rate_ew
+            stats[grid_ind]["arrivals_on_green_rate"] = self.intersections[grid_ind].arrivals_on_green_rate
+            
             stats[grid_ind]["N"] = {}
             stats[grid_ind]["N"]["queue_length"] = n_queue_length
             stats[grid_ind]["N"]["arrivals"] = n_arrivals
@@ -1086,6 +1150,45 @@ class IntersectionNetworkSimulator:
             traffic_light.plot_green_light(axs[2],t)
 
         return fig, axs
+    
+    def plot_avg_clearance_rate(self, plt, grid_ind: (int,int), end_time: float, delta_t: float, fig_size=(float,float), start_time=0):
+        """
+        Plots the simulation stats for a queue.
+        
+        plt : matplotlib.pyplot
+            The pyplot instance used for plotting.
+        grid_ind : (int,int)
+            The grid index of the queue.
+        direction : (int,int)
+            The travel direction of the queue.
+        end_time : float
+            The end time [s] of the plot.
+        delta_t : float
+            The time-step size.
+        fig_size : (float, float)
+            The figure size of the plot.
+        start_time : (float, float) (optional)
+            The start time [s] of the plot. Defaults to 0.
+        traffic_light : TrafficLight.PeriodicTrafficLight (optional)
+            The traffic light controlling the queue.
+        """
+        fig, ax = plt.subplots(figsize=fig_size, dpi=90)
+        rate_ns = self.get_stats()[grid_ind]["avg_clearance_rate_ns"]
+        rate_ew = self.get_stats()[grid_ind]["avg_clearance_rate_ew"]
+        
+        t = np.arange(start_time,end_time,delta_t)
+        
+        start_ind = int(start_time/delta_t)
+        end_ind = int(end_time/delta_t)
+        
+        ax.plot(t, rate_ns[start_ind:end_ind], label="NS")
+        ax.plot(t, rate_ew[start_ind:end_ind], label="EW")
+        ax.set(xlabel="time [s]", ylabel='avg. clearance rate')
+        ax.set_title('Average clearance rate over time')
+        ax.label_outer()
+        ax.legend()
+
+        return fig, ax
     
     def plot_avg_wait_time(self, plt, end_time: float, delta_t: float, fig_size=(float,float), start_time=0):
         fig, ax = plt.subplots(figsize=fig_size, dpi=90)

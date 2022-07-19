@@ -154,6 +154,14 @@ class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
         self.estimator = None
         self.horizontal_crossers = []
         self.vertical_crossers = []
+        self.num_queued_vehicles = [0]
+        self.avg_clearance_rate_ns = []
+        self.avg_clearance_rate_ew = []
+        self.arrivals = 0
+        self.arrivals_on_green = 0
+        self.arrivals_on_green_rate = []
+        self.cum_clearance_rate_ns = 0.
+        self.cum_clearance_rate_ew = 0.
         
 class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
     def __init__(self):
