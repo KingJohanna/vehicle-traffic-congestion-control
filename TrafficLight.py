@@ -1,5 +1,7 @@
 import numpy as np
 import random
+import Vehicle
+import math
 
 class TrafficLight:
     def __init__(self):
@@ -219,6 +221,7 @@ class AdaptiveTrafficLight(TrafficLight):
         self.service = False
         self.service_history = [self.service]
         self.positions = [(0,0), (0,0)]
+        self.sensor_position = (0,0)
         self.time = 0
         self.adaptive = True
         self.objective_length = 0
@@ -227,64 +230,171 @@ class AdaptiveTrafficLight(TrafficLight):
         self.switches = [0]
         self.sensor_depth = 0
         self.rule = 0
+        self.range = 40
         
     def initialize(self, sensor_depth: int, rule=1):
         self.sensor_depth = sensor_depth
         self.rule = rule
+        
+    def distance_to_sensor(self, position: (float, float)):
+        return math.hypot(position[0]-self.sensor_position[0], position[1]-self.sensor_position[1])
     
     def sense(self, queue_1, queue_2, opposite_queue_1, opposite_queue_2) -> None:
-        queue_length = queue_1.queue.queue_length + queue_2.queue.queue_length
-        opposite_queue_length = opposite_queue_1.queue.queue_length + opposite_queue_2.queue.queue_length
+        vehicles = []
+        opposite_vehicles = []
         
-        
-        if queue_length > self.sensor_depth:
-            queue_length = self.sensor_depth
-        if opposite_queue_length > self.sensor_depth:
-            opposite_queue_length = self.sensor_depth
+        if len(queue_1) > self.sensor_depth:
+            vehicles += queue_1[:self.sensor_depth]
+        else:
+            vehicles += queue_1
             
-        if self.case == EMPTY_MIDWAY:
-            if queue_length <= self.objective_length:
-                self.case = EMPTY_OTHER
-        elif self.case == EMPTY_OTHER_MIDWAY:
-            if opposite_queue_length <= self.objective_length:
-                self.case = EMPTY
-        
-        if self.case == EMPTY:
-            if queue_length <= 0:
-                self.case = WAIT
-        elif self.case == EMPTY_OTHER:
-            if opposite_queue_length <= 0:
-                self.case = WAIT
+        if len(queue_2) > self.sensor_depth:
+            vehicles += queue_2[:self.sensor_depth]
+        else:
+            vehicles += queue_2
             
-        if self.case == WAIT:
-            if queue_length >= 1 and opposite_queue_length < self.sensor_depth:
+        if len(opposite_queue_1) > self.sensor_depth:
+            opposite_vehicles += opposite_queue_1[:self.sensor_depth]
+        else:
+            opposite_vehicles += opposite_queue_1
+            
+        if len(opposite_queue_2) > self.sensor_depth:
+            opposite_vehicles += opposite_queue_2[:self.sensor_depth]
+        else:
+            opposite_vehicles += opposite_queue_2
+           
+        vehicles = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, vehicles))
+        opposite_vehicles = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_vehicles))
+        
+        if self.rule == 1:
+            queue_length = len(vehicles)
+            opposite_queue_length = len(opposite_vehicles)
+            
+            if self.case == EMPTY_MIDWAY:
+                if queue_length <= self.objective_length:
+                    self.case = EMPTY_OTHER
+            elif self.case == EMPTY_OTHER_MIDWAY:
+                if opposite_queue_length <= self.objective_length:
+                    self.case = EMPTY
+
+            if self.case == EMPTY:
+                if queue_length <= 0:
+                    self.case = WAIT
+            elif self.case == EMPTY_OTHER:
                 if opposite_queue_length <= 0:
+                    self.case = WAIT
+
+            if self.case == WAIT:
+                if queue_length >= 1 and opposite_queue_length < 2*self.sensor_depth:
+                    if opposite_queue_length <= 0:
+                        self.case = EMPTY
+                    elif opposite_queue_length == queue_length:
+                        self.case = EMPTY
+                    elif opposite_queue_length >= queue_length:
+                        if opposite_queue_length-queue_length > 2:
+                            self.case = EMPTY_OTHER_MIDWAY
+                            self.objective_length = opposite_queue_length-queue_length
+                        else:
+                            self.case = EMPTY_OTHER
+                elif queue_length == 1 and opposite_queue_length >= 2*self.sensor_depth:
                     self.case = EMPTY
-                elif opposite_queue_length == queue_length:
+
+                if opposite_queue_length >= 1 and queue_length < 2*self.sensor_depth:
+                    if queue_length <= 0:
+                        self.case = EMPTY_OTHER
+                    #elif queue_length == opposite_queue_length:
+                        #self.case = EMPTY_OTHER
+                    elif queue_length >= opposite_queue_length:
+                        if queue_length-opposite_queue_length > 2:
+                            self.case = EMPTY_MIDWAY
+                            self.objective_length = queue_length-opposite_queue_length
+                        else:
+                            self.case = EMPTY
+                elif opposite_queue_length == 1 and queue_length >= 2*self.sensor_depth:
+                    self.case = EMPTY_OTHER
+                                
+        elif self.rule == 2:
+            platoons = []
+            if len(vehicles) > 0:
+                platoons = [[vehicles[0]]]
+            platoon_metrics = []
+            opposite_platoons = []
+            if len(opposite_vehicles) > 0:
+                opposite_platoons = [[opposite_vehicles[0]]]
+            opposite_platoon_metrics = []
+            
+            for i in range(1, len(vehicles)): #split into platoons
+                if (vehicles[i].direction == Vehicle.NORTH and vehicles[i-1].tail_position[1]-vehicles[i].position[1] <= 2) or (vehicles[i].direction == Vehicle.EAST and vehicles[i-1].tail_position[0]-vehicles[i].position[0] <= 2) or (vehicles[i].direction == Vehicle.SOUTH and vehicles[i].position[1]-vehicles[i-1].tail_position[1] <= 2) or (vehicles[i].direction == Vehicle.WEST and vehicles[i].position[0]-vehicles[i-1].tail_position[0] <= 2):
+                    platoons[-1] += [vehicles[i]]
+                else:
+                    platoons += [[vehicles[i]]]
+                    
+            for platoon in platoons:
+                platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
+            
+            for i in range(1, len(opposite_vehicles)):
+                if (opposite_vehicles[i].direction == Vehicle.NORTH and opposite_vehicles[i-1].tail_position[1]-opposite_vehicles[i].position[1] <= 2) or (opposite_vehicles[i].direction == Vehicle.EAST and opposite_vehicles[i-1].tail_position[0]-opposite_vehicles[i].position[0] <= 2) or (opposite_vehicles[i].direction == Vehicle.SOUTH and opposite_vehicles[i].position[1]-opposite_vehicles[i-1].tail_position[1] <= 2) or (opposite_vehicles[i].direction == Vehicle.WEST and opposite_vehicles[i].position[0]-opposite_vehicles[i-1].tail_position[0] <= 2):
+                    opposite_platoons[-1] += [opposite_vehicles[i]]
+                else:
+                    opposite_platoons += [[opposite_vehicles[i]]]
+                    
+            for platoon in opposite_platoons:
+                opposite_platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
+                
+            #print(len(platoons), len(opposite_platoons))
+            
+            if self.case == EMPTY_MIDWAY:
+                if len(platoons) <= self.objective_length:
+                    self.case = WAIT
+            elif self.case == EMPTY_OTHER_MIDWAY:
+                if len(opposite_platoons) <= self.objective_length:
+                    self.case = WAIT
+            elif self.case == EMPTY:
+                if len(platoons) <= 0:
+                    self.case = WAIT
+            elif self.case == EMPTY_OTHER:
+                if len(opposite_platoons) <= 0:
+                    self.case = WAIT
+                    
+            if self.case == WAIT:
+                if len(opposite_platoons) <= 0:
                     self.case = EMPTY
-                elif opposite_queue_length >= queue_length:
-                    if opposite_queue_length-queue_length > 2:
-                        self.case = EMPTY_OTHER_MIDWAY
-                        self.objective_length = opposite_queue_length-queue_length
+                    
+                elif len(platoons) <= 0:
+                    self.case = EMPTY_OTHER
+
+                elif len(platoons) == 1 and len(opposite_platoons) == 1:
+                    distance = (vehicles[0].position[0]*vehicles[0].direction[0] + vehicles[0].position[1]*vehicles[0].direction[1]) - (vehicles[-1].tail_position[0]*vehicles[-1].direction[0] + vehicles[-1].tail_position[1]*vehicles[-1].direction[1])
+                    speed = vehicles[0].full_speed
+                    opposite_distance = (opposite_vehicles[0].position[0]*opposite_vehicles[0].direction[0] + opposite_vehicles[0].position[1]*opposite_vehicles[0].direction[1]) - (opposite_vehicles[-1].tail_position[0]*opposite_vehicles[-1].direction[0] + opposite_vehicles[-1].tail_position[1]*opposite_vehicles[-1].direction[1])
+                    opposite_speed = opposite_vehicles[0].full_speed
+                    
+                    cum_metric = platoon_metrics[0][1] + opposite_distance/opposite_speed
+                    opposite_cum_metric = opposite_platoon_metrics[0][1] + distance/speed
+                    if cum_metric > opposite_cum_metric:
+                        self.case = EMPTY
                     else:
                         self.case = EMPTY_OTHER
-            elif queue_length == 1 and opposite_queue_length >= self.sensor_depth:
-                self.case = EMPTY
+                        
+                    #print(cum_metric, opposite_cum_metric)
+                elif len(platoons) > 1 and len(opposite_platoons) > 1:
+                    distance = (platoons[0][0].position[0]*vehicles[0].direction[0] + platoons[0][0].position[1]*platoons[0][0].direction[1]) - (platoons[0][-1].tail_position[0]*platoons[0][-1].direction[0] + platoons[0][-1].tail_position[1]*platoons[0][-1].direction[1])
+                    speed = platoons[0][0].full_speed
+                    opposite_distance = (opposite_platoons[0][0].position[0]*opposite_platoons[0][0].direction[0] + opposite_platoons[0][0].position[1]*opposite_platoons[0][0].direction[1]) - (opposite_platoons[0][-1].tail_position[0]*opposite_platoons[0][-1].direction[0] + opposite_platoons[0][-1].tail_position[1]*opposite_platoons[0][-1].direction[1])
+                    opposite_speed = opposite_platoons[0][0].full_speed
 
-            if opposite_queue_length >= 1 and queue_length < self.sensor_depth:
-                if queue_length <= 0:
-                    self.case = EMPTY_OTHER
-                #elif queue_length == opposite_queue_length:
-                    #self.case = EMPTY_OTHER
-                elif queue_length >= opposite_queue_length:
-                    if queue_length-opposite_queue_length > 2:
+                    cum_metric = opposite_distance/opposite_speed + sum(metric[1] for metric in platoon_metrics)
+                    cum_metric /= len(platoons)
+                    opposite_cum_metric = distance/speed + sum(metric[1] for metric in opposite_platoon_metrics)
+                    opposite_cum_metric /= len(opposite_platoons)
+
+                    if cum_metric >= opposite_cum_metric:
                         self.case = EMPTY_MIDWAY
-                        self.objective_length = queue_length-opposite_queue_length
+                        self.objective_length = len(platoons)-1
                     else:
-                        self.case = EMPTY
-            elif opposite_queue_length == 1 and queue_length >= self.sensor_depth:
-                self.case = EMPTY_OTHER
-                
+                        self.case = EMPTY_OTHER_MIDWAY
+                        self.objective_length = len(opposite_platoons)-1
+                    
         self.update_service()
         
     def update_service(self):

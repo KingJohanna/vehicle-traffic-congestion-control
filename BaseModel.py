@@ -492,6 +492,12 @@ class FourWayIntersectionSimulator:
         self.traffic_light_ew.positions[0] = (self.queue_e.queue.head_position[0], self.queue_e.queue.head_position[1]-self.length/2)
         self.traffic_light_ew.positions[1] = (self.queue_w.queue.head_position[0], self.queue_w.queue.head_position[1]+self.length/2)
         
+        if self.traffic_light_ew.adaptive:
+            self.traffic_light_ew.sensor_position = self.position
+            
+        if self.traffic_light_ns.adaptive:
+            self.traffic_light_ns.sensor_position = self.position
+        
     def initialize_structure(self, position: (float, float), length=15.) -> None:
         """
         Initializes the structure of the intersection.
@@ -573,12 +579,6 @@ class FourWayIntersectionSimulator:
             self.avg_clearance_rate_ew += [self.cum_clearance_rate_ew/(tot_switches_ew[-1]-1)]
         else:
             self.avg_clearance_rate_ew += [0]
-        
-        if self.traffic_light_ns.adaptive:
-            self.traffic_light_ns.sense(queue_1=self.queue_n, queue_2=self.queue_s, opposite_queue_1=self.queue_e, opposite_queue_2=self.queue_w)
-        
-        if self.traffic_light_ew.adaptive:
-            self.traffic_light_ns.sense(queue_1=self.queue_e, queue_2=self.queue_w, opposite_queue_1=self.queue_n, opposite_queue_2=self.queue_s)
         
         horizontal_crossers = []
         for vehicle in self.horizontal_crossers:
@@ -884,13 +884,13 @@ class IntersectionNetworkSimulator:
                 vehicle.update_plot()
             
             if vehicle.destination in self.grid_inds and vehicle.speed > 0 and self.distance_to_destination(vehicle=vehicle) <= vehicle.speed*delta_t:
-                if vehicle.direction == Vehicle.NORTH:
+                if vehicle.direction == Vehicle.NORTH and not self.intersections[vehicle.destination].queue_n.edge:
                     self.intersections[vehicle.destination].queue_n.queue_vehicle(arriving_vehicle=vehicle)
-                elif vehicle.direction == Vehicle.WEST:
+                elif vehicle.direction == Vehicle.WEST and not self.intersections[vehicle.destination].queue_w.edge:
                     self.intersections[vehicle.destination].queue_w.queue_vehicle(arriving_vehicle=vehicle)
-                elif vehicle.direction == Vehicle.SOUTH:
+                elif vehicle.direction == Vehicle.SOUTH and not self.intersections[vehicle.destination].queue_s.edge:
                     self.intersections[vehicle.destination].queue_s.queue_vehicle(arriving_vehicle=vehicle)
-                elif vehicle.direction == Vehicle.EAST:
+                elif vehicle.direction == Vehicle.EAST and not self.intersections[vehicle.destination].queue_e.edge:
                     self.intersections[vehicle.destination].queue_e.queue_vehicle(arriving_vehicle=vehicle) 
         
         if self.exits[-1] > 0:
@@ -910,6 +910,7 @@ class IntersectionNetworkSimulator:
             intersection_arrivals, intersection_departures = self.intersections[grid_ind].run_event(delta_t=delta_t, animate=animate, plt=plt)
             arrivals[grid_ind] = intersection_arrivals
             for arrival in intersection_arrivals:
+                arrival.destination = grid_ind
                 self.vehicles.add(arrival)
             
             intersection_departures = [(departure,grid_ind) for departure in intersection_departures]
@@ -919,10 +920,29 @@ class IntersectionNetworkSimulator:
                 self.observe(departures=departures[grid_ind])
         
         for grid_ind in self.grid_inds:
+            northbound = []
+            eastbound = []
+            southbound = []
+            westbound = []
+                
+            if self.intersections[grid_ind].traffic_light_ew.adaptive or self.intersections[grid_ind].traffic_light_ns.adaptive:
+                vehicles = list(filter(lambda vehicle: vehicle.destination == grid_ind, self.vehicles))
+                northbound = list(filter(lambda vehicle: vehicle.direction == Vehicle.NORTH, vehicles))
+                eastbound = list(filter(lambda vehicle: vehicle.direction == Vehicle.EAST, vehicles))
+                southbound = list(filter(lambda vehicle: vehicle.direction == Vehicle.SOUTH, vehicles))
+                westbound = list(filter(lambda vehicle: vehicle.direction == Vehicle.WEST, vehicles))
+                
+                #print(grid_ind, len(vehicles), len(northbound), len(eastbound), len(southbound), len(westbound))
+                
+            if self.intersections[grid_ind].traffic_light_ew.adaptive:
+                self.intersections[grid_ind].traffic_light_ew.sense(queue_1=eastbound, queue_2=westbound, opposite_queue_1=northbound, opposite_queue_2=southbound)
+            
+            if self.intersections[grid_ind].traffic_light_ns.adaptive:
+                self.intersections[grid_ind].traffic_light_ns.sense(queue_1=northbound, queue_2=southbound, opposite_queue_1=eastbound, opposite_queue_2=westbound)
+                
             if not self.intersections[grid_ind].observable:
                 self.observations = self.intersections[grid_ind].estimator.estimate(observations=self.observations)
                 self.intersections[grid_ind].estimator.run_event(delta_t=delta_t)
-    
         
         for vehicle in self.vehicles:
             vehicle.time_step(delta_t=delta_t)
