@@ -42,15 +42,17 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
         departing_vehicle = None
         
         if random.random() < self.arrival_probability(delta_t=delta_t):
-            arriving_vehicle = Vehicle.Vehicle()
-            arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
-            #if animate:
-                #arriving_vehicle.initialize_plot(plt, markersize=8/len(self.grid_inds))
-            self.queue.append(arriving_vehicle)
-            self.time_since_arrival = 0
-            self.arrivals += [self.arrivals[-1]+1]
-        else:
+            #arriving_vehicle = Vehicle.Vehicle()
+            #arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
+            #self.queue.append(arriving_vehicle)
+            #self.time_since_arrival = 0
+            self.generate_vehicle()
+            self.next_arrival_timestamp += self.time_until_arrival()
+        
+        if self.time_since_arrival > 0:
             self.arrivals += [self.arrivals[-1]]
+        else:
+            self.arrivals += [self.arrivals[-1]+1]
 
         if random.random() < self.departure_probability(delta_t=delta_t, saturation_rate=saturation_rate):
             departing_vehicle = self.queue.remove()
@@ -71,7 +73,7 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
         
         return arriving_vehicle, departing_vehicle
 
-class ConnectedQueueSimulator(BaseModel.ConnectedQueueSimulator):
+class ConnectedQueueSimulator(BaseModel.QueueSimulator):
     def departure_probability(self, delta_t: float, saturation_rate) -> float:
         """
         Returns the probability of a departure occurring within a time-step.
@@ -153,13 +155,14 @@ class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
         self.horizontal_crossers = []
         self.vertical_crossers = []
         self.num_queued_vehicles = [0]
-        self.avg_clearance_rate_ns = []
-        self.avg_clearance_rate_ew = []
+        self.avg_clearance_rate_ns = 0.
+        self.avg_clearance_rate_ew = 0.
         self.arrivals = 0
         self.arrivals_on_green = 0
-        self.arrivals_on_green_rate = []
+        self.arrivals_on_green_rate = 0.
         self.cum_clearance_rate_ns = 0.
         self.cum_clearance_rate_ew = 0.
+        self.avg_wait_time = 0.
         
 class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
     def __init__(self):
@@ -188,5 +191,5 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         self.tot_wait_time = 0.
         self.exits = [0]
         self.observations = []
-        self.avg_wait_time = []
+        self.avg_wait_time = 0.
         self.observable_intersection_grid_inds = []

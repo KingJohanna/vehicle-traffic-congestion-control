@@ -11,7 +11,7 @@ class TrafficLight:
         self.positions = [(0,0), (0,0)]
         self.time = 0
         self.adaptive = False
-        self.num_switches = [0]
+        self.num_cycles = [0]
         self.switches = [0]
         
     def time_step(self, delta_t: float) -> None:
@@ -22,13 +22,13 @@ class TrafficLight:
         self.service = self.saturation_rate()
         self.service_history += [self.service]
         
-        self.num_switches += [self.num_switches[-1]]
+        self.num_cycles += [self.num_cycles[-1]]
         
         switch = self.service - self.service_history[-2]
         self.switches += [switch]
         
-        if switch > 0:
-            self.num_switches[-1] += 1
+        if switch < 0:
+            self.num_cycles[-1] += 1
         
     def red_to_green_stats(self):
         switches = [service-prev_service for service,prev_service in zip(self.service_history+[0],[0]+self.service_history)][:-2]
@@ -62,7 +62,7 @@ class TrafficLight:
     def reset(self):
         self.service = self.saturation_rate()
         self.service_history = [self.service]
-        self.num_switches = [0]
+        self.num_cycles = [0]
         self.switches = [0]
         self.time = 0.
         
@@ -83,7 +83,7 @@ class TrafficLightMirror(TrafficLight):
         self.service = False
         self.service_history = []
         self.adaptive = False
-        self.num_switches = [0]
+        self.num_cycles = [0]
         self.switches = [0]
         
     def initialize(self, traffic_light: TrafficLight) -> None:
@@ -122,7 +122,7 @@ class PeriodicTrafficLight(TrafficLight):
         self.service = False
         self.service_history = [self.service]
         self.adaptive = False
-        self.num_switches = [0]
+        self.num_cycles = [0]
         self.switches = [0]
         
     def initialize(self, period: float, time_delay: float, green_ratio=0.5) -> None:
@@ -170,7 +170,7 @@ class MemoryLessTrafficLight(TrafficLight):
         self.visuals = [None, None]
         self.positions = [(0,0), (0,0)]
         self.adaptive = False
-        self.num_switches = [0]
+        self.num_cycles = [0]
         self.switches = [0]
         
     def initialize(self, green_to_red_rate: float, red_to_green_rate: float) -> None:
@@ -226,7 +226,7 @@ class AdaptiveTrafficLight(TrafficLight):
         self.adaptive = True
         self.objective_length = 0
         self.case = WAIT
-        self.num_switches = [0]
+        self.num_cycles = [0]
         self.switches = [0]
         self.sensor_depth = 0
         self.rule = 0
@@ -240,6 +240,15 @@ class AdaptiveTrafficLight(TrafficLight):
         return math.hypot(position[0]-self.sensor_position[0], position[1]-self.sensor_position[1])
     
     def sense(self, queue_1, queue_2, opposite_queue_1, opposite_queue_2) -> None:
+        queue_1 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, queue_1))
+        queue_2 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, queue_2))
+        opposite_queue_1 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_queue_1))
+        opposite_queue_2 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_queue_2))
+        queue_1.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
+        queue_2.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
+        opposite_queue_1.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
+        opposite_queue_2.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
+        
         vehicles = []
         opposite_vehicles = []
         
@@ -324,16 +333,16 @@ class AdaptiveTrafficLight(TrafficLight):
             opposite_platoon_metrics = []
             
             for i in range(1, len(vehicles)): #split into platoons
-                if (vehicles[i].direction == Vehicle.NORTH and vehicles[i-1].tail_position[1]-vehicles[i].position[1] <= 2) or (vehicles[i].direction == Vehicle.EAST and vehicles[i-1].tail_position[0]-vehicles[i].position[0] <= 2) or (vehicles[i].direction == Vehicle.SOUTH and vehicles[i].position[1]-vehicles[i-1].tail_position[1] <= 2) or (vehicles[i].direction == Vehicle.WEST and vehicles[i].position[0]-vehicles[i-1].tail_position[0] <= 2):
+                if (vehicles[i].direction == Vehicle.NORTH and vehicles[i-1].tail_position[1]-vehicles[i].position[1] <= vehicles[i].length) or (vehicles[i].direction == Vehicle.EAST and vehicles[i-1].tail_position[0]-vehicles[i].position[0] <= vehicles[i].length) or (vehicles[i].direction == Vehicle.SOUTH and vehicles[i].position[1]-vehicles[i-1].tail_position[1] <= vehicles[i].length) or (vehicles[i].direction == Vehicle.WEST and vehicles[i].position[0]-vehicles[i-1].tail_position[0] <= vehicles[i].length):
                     platoons[-1] += [vehicles[i]]
                 else:
                     platoons += [[vehicles[i]]]
-                    
+              
             for platoon in platoons:
                 platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
             
             for i in range(1, len(opposite_vehicles)):
-                if (opposite_vehicles[i].direction == Vehicle.NORTH and opposite_vehicles[i-1].tail_position[1]-opposite_vehicles[i].position[1] <= 2) or (opposite_vehicles[i].direction == Vehicle.EAST and opposite_vehicles[i-1].tail_position[0]-opposite_vehicles[i].position[0] <= 2) or (opposite_vehicles[i].direction == Vehicle.SOUTH and opposite_vehicles[i].position[1]-opposite_vehicles[i-1].tail_position[1] <= 2) or (opposite_vehicles[i].direction == Vehicle.WEST and opposite_vehicles[i].position[0]-opposite_vehicles[i-1].tail_position[0] <= 2):
+                if (opposite_vehicles[i].direction == Vehicle.NORTH and opposite_vehicles[i-1].tail_position[1]-opposite_vehicles[i].position[1] <= opposite_vehicles[i].length) or (opposite_vehicles[i].direction == Vehicle.EAST and opposite_vehicles[i-1].tail_position[0]-opposite_vehicles[i].position[0] <= opposite_vehicles[i].length) or (opposite_vehicles[i].direction == Vehicle.SOUTH and opposite_vehicles[i].position[1]-opposite_vehicles[i-1].tail_position[1] <= opposite_vehicles[i].length) or (opposite_vehicles[i].direction == Vehicle.WEST and opposite_vehicles[i].position[0]-opposite_vehicles[i-1].tail_position[0] <= opposite_vehicles[i].length):
                     opposite_platoons[-1] += [opposite_vehicles[i]]
                 else:
                     opposite_platoons += [[opposite_vehicles[i]]]
@@ -341,7 +350,7 @@ class AdaptiveTrafficLight(TrafficLight):
             for platoon in opposite_platoons:
                 opposite_platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
                 
-            #print(len(platoons), len(opposite_platoons))
+            #print(self.time, len(platoons), len(opposite_platoons))
             
             if self.case == EMPTY_MIDWAY:
                 if len(platoons) <= self.objective_length:
