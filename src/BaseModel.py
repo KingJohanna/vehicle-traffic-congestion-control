@@ -92,7 +92,11 @@ class Queue:
                 self.update_tail_position()
                 self.departing_vehicle = departing_vehicle
                 
+                if departing_vehicle == self.last_arriving_vehicle:
+                    self.last_arriving_vehicle = None
+                
                 return departing_vehicle
+                
         return None
     
     def update_tail_position(self) -> None:
@@ -355,11 +359,21 @@ class QueueSimulator:
             tail_position = self.queue.last_arriving_vehicle.tail_position
         else:
             tail_position = self.queue.tail_position
+            
+        tail_position=(tail_position[0]-3*self.queue.direction[0], tail_position[1]-3*self.queue.direction[1])
+            
+        edge_distance = math.hypot(self.queue.edge_position[0]-self.queue.head_position[0], self.queue.edge_position[1]-self.head_position[1])
+        tail_distance = math.hypot(tail_position[0]-self.queue.head_position[0], tail_position[1]-self.queue.head_position[1])
         
-        if (self.queue.direction == Vehicle.NORTH and tail_position[1] <= self.queue.edge_position[1]) or (self.queue.direction == Vehicle.EAST and tail_position[0] <= self.queue.edge_position[0]) or (self.queue.direction == Vehicle.SOUTH and tail_position[1] >= self.queue.edge_position[1]) or (self.queue.direction == Vehicle.WEST and tail_position[0] >= self.queue.edge_position[0]):
-            vehicle.initialize(position=(tail_position[0]-3*self.queue.direction[0], tail_position[1]-3*self.queue.direction[1]), direction=self.queue.direction)
-        else:
+        if edge_distance > tail_distance:
             vehicle.initialize(position=self.queue.edge_position, direction=self.queue.direction)
+        else:
+            vehicle.initialize(position=tail_position, direction=self.queue.direction)
+        
+        #if (self.queue.direction == Vehicle.NORTH and tail_position[1] <= self.queue.edge_position[1]) or (self.queue.direction == Vehicle.EAST and tail_position[0] <= self.queue.edge_position[0]) or (self.queue.direction == Vehicle.SOUTH and tail_position[1] >= self.queue.edge_position[1]) or (self.queue.direction == Vehicle.WEST and tail_position[0] >= self.queue.edge_position[0]):
+         #   vehicle.initialize(position=(tail_position[0]-3*self.queue.direction[0], tail_position[1]-3*self.queue.direction[1]), direction=self.queue.direction)
+        #else:
+         #   vehicle.initialize(position=self.queue.edge_position, direction=self.queue.direction)
             
         self.queue.last_arriving_vehicle = vehicle
         
@@ -805,7 +819,7 @@ class IntersectionNetworkSimulator:
         
         return fig, ax
 
-    def simulate(self, delta_t: float, end_time: float, fig_width=4, animate=False, file_name="simulation.mp4", speed=1) -> None:
+    def simulate(self, delta_t: float, end_time: float, fig_width=4, animate=False, file_name="simulation.mp4", output_destination="./data/vids/", speed=1) -> None:
         if animate:
             FFMpegWriter = manimation.writers['ffmpeg']
             metadata = dict(title='Simulation', artist='Matplotlib',
@@ -817,7 +831,7 @@ class IntersectionNetworkSimulator:
             fig, ax = self.initialize_plot((fig_width, fig_height), plt)
             text = plt.gcf().text(0, 0.95, "Elapsed time: 0s", fontsize=14)
 
-            with writer.saving(fig, file_name, 100):
+            with writer.saving(fig, output_destination+file_name, 100):
                 while self.time < end_time:
                     self.run_event(delta_t=delta_t, animate=True, plt=plt)
                     text.set_text("Elapsed time: "+str(round(self.time,1))+"s")
@@ -865,8 +879,6 @@ class IntersectionNetworkSimulator:
             self.avg_wait_time = self.tot_wait_time/self.exits[-1]
         
         for exit in exits:
-            #if exit.tot_wait_time != exit.wait_time:
-            #    print(exit.tot_wait_time,exit.wait_time)
             self.vehicles.remove(exit)
         
         arrivals = dict()
@@ -1069,7 +1081,7 @@ class IntersectionNetworkSimulator:
             
         return stats
     
-    def save_to_file(self, file_name: str, output_destination="networks") -> None:
+    def save_to_file(self, file_name: str, output_destination="./data/") -> None:
         f = open(Path(output_destination) / file_name,"wb")
         pkl.dump(self,f)
         f.close()

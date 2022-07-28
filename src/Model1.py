@@ -35,12 +35,7 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         departing_vehicle = None
         
         if self.time >= self.next_arrival_timestamp:
-            #arriving_vehicle = Vehicle.Vehicle()
-            #arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
-            #self.queue.append(arriving_vehicle)
-            #self.time_since_arrival = 0
             arriving_vehicle = self.generate_vehicle()
-            #print(self.time)
             self.next_arrival_timestamp += self.time_until_arrival()
         
         if self.time_since_arrival > 0:
@@ -70,7 +65,6 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
-        #self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         return arriving_vehicle, departing_vehicle
     
@@ -119,7 +113,6 @@ class ConnectedQueueSimulator(BaseModel.QueueSimulator):
         
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
-        #self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
         return None, departing_vehicle
     

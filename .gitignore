@@ -1,7 +1,7 @@
 __pycache__
 .ipynb_checkpoints
-figs/*
+data/figs/*
 test.ipynb
-stats/*
-evals/*
-networks/*
+data/stats (old)
+data/evals/*
+data/vids/*

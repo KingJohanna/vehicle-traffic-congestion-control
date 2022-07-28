@@ -88,9 +88,9 @@ class TrafficLightMirror(TrafficLight):
         
     def initialize(self, traffic_light: TrafficLight) -> None:
         """
-        Initializes the MemoryLessTrafficLightMirror instance.
+        Initializes the TrafficLightMirror instance.
         
-        traffic_light : MemoryLessTrafficLight
+        traffic_light : TrafficLight
             The traffic light instance to mirror.
         """
         self.traffic_light = traffic_light

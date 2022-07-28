@@ -176,13 +176,14 @@ class Evaluator:
         
         return fig,axs
     
-    def save_to_file(self, file_name: str, output_destination="evals") -> None:
-        f = open(Path(output_destination) / file_name,"wb")
+    def save_to_file(self, file_name: str, output_destination="./data/evals/") -> None:
+        dim = str(self.network.grid_dimensions[0]+1)+"x"+str(self.network.grid_dimensions[1]+1)
+        f = open(Path(output_destination) / dim / file_name,"wb")
         pickle.dump(self,f)
         f.close()
         
-    def read_file(self, file_name: str, destination="evals"):
-        with open(Path(destination) / file_name, 'rb') as f:
+    def read_file(self, file_name: str, grid_dim: str, destination="./data/evals/"):
+        with open(Path(destination) / grid_dim / file_name, 'rb') as f:
             return pickle.load(f)
             
 class MultiEvaluator:
@@ -361,11 +362,11 @@ class MultiEvaluator:
         
         return fig,ax
     
-    def save_to_file(self, file_name: str, output_destination="stats") -> None:
+    def save_to_file(self, file_name: str, output_destination="./data/evals/multi/") -> None:
         f = open(Path(output_destination) / file_name,"wb")
         pickle.dump(self,f)
         f.close()
         
-    def read_file(self, file_name: str, destination="stats"):
+    def read_file(self, file_name: str, destination="./data/evals/multi/"):
         with open(Path(destination) / file_name, 'rb') as f:
             return pickle.load(f)
