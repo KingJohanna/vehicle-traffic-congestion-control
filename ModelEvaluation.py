@@ -1,6 +1,9 @@
 import numpy as np
 from pathlib import Path
 import pickle
+from matplotlib.ticker import (MultipleLocator,
+                               FormatStrFormatter,
+                               AutoMinorLocator)
 
 class Evaluator:
     def __init__(self):
@@ -14,7 +17,6 @@ class Evaluator:
     def initialize(self, network) -> None:
         self.network = network
         self.output["avg_wait_time"] = {}
-        # add avg_clearance_rate_xx, arrival_on_green_rate, tot_switches_xx
         
         for grid_ind in network.grid_inds:
             self.output[grid_ind] = {}
@@ -173,6 +175,15 @@ class Evaluator:
         axs[3].set_title("average_over_time length of westbound queue over time")
         
         return fig,axs
+    
+    def save_to_file(self, file_name: str, output_destination="evals") -> None:
+        f = open(Path(output_destination) / file_name,"wb")
+        pickle.dump(self,f)
+        f.close()
+        
+    def read_file(self, file_name: str, destination="evals"):
+        with open(Path(destination) / file_name, 'rb') as f:
+            return pickle.load(f)
             
 class MultiEvaluator:
     def __init__(self):
@@ -280,7 +291,7 @@ class MultiEvaluator:
         tot_switches_ew = []
         arrivals_on_green_rate = []
         avg_wait_time = []
-        avg_num_queued_vehicles = []
+        avg_queue_length = []
         
         for label,evaluator in self.evaluators.items():
             avg_clearance_rate_ns += [evaluator.average[grid_ind]["avg_clearance_rate_ns"]]
@@ -289,7 +300,7 @@ class MultiEvaluator:
             tot_switches_ns += [evaluator.average[grid_ind]["tot_switches_ns"]]
             tot_switches_ew += [evaluator.average[grid_ind]["tot_switches_ew"]]
             arrivals_on_green_rate += [evaluator.average[grid_ind]["arrivals_on_green_rate"]]
-            avg_num_queued_vehicles += [evaluator.average[grid_ind]["avg_num_queued_vehicles"]]
+            avg_queue_length += [evaluator.average[grid_ind]["avg_queue_length"]]
             avg_wait_time += [evaluator.average[grid_ind]["avg_wait_time"]]
         
         t = np.arange(0., evaluator.end_time, evaluator.delta_t)
@@ -304,9 +315,9 @@ class MultiEvaluator:
             ax1.set(ylabel="total switches")
             ax1.set_title("Total green-to-red switches")
         else:
-            ax1.plot(labels, avg_num_queued_vehicles, '*')
-            ax1.set(ylabel="avg. nbr. queued vehicles")
-            ax1.set_title("Average number of queued vehicles")
+            ax1.plot(labels, avg_queue_length, '*')
+            ax1.set(ylabel="avg. queue length")
+            ax1.set_title("Average queue length per lane")
         ax2.plot(labels, avg_clearance_rate_ns, '*', label="NS")
         ax2.plot(labels, avg_clearance_rate_ew, '*', label="EW")
         ax2.plot(labels, avg_clearance_rate, '--', label="All")
@@ -317,7 +328,7 @@ class MultiEvaluator:
         ax3.set_title("Proportion arriving on green light")
         ax4.plot(labels, avg_wait_time, '*',)
         ax4.set(xlabel=self.variable, ylabel="avg. wait time [s]")
-        ax4.set_title("Average wait time")
+        ax4.set_title("Average cumulative waiting time")
         #axs[3].plot(labels, avg_wait_time)
         #axs[3].set(ylabel="avg. wait time [s]")
         #axs[3].set_title("average wait time")
@@ -329,6 +340,9 @@ class MultiEvaluator:
         #ax1.legend(loc='center right', bbox_to_anchor=(1.15, 0.5), ncol=1, fancybox=True, shadow=True)
         ax2.legend(loc='center right', bbox_to_anchor=(1.15, 0.5), ncol=1, fancybox=True, shadow=True)
         #axs[2].legend(loc='center right', bbox_to_anchor=(1.05, 0.5), ncol=1, fancybox=True, shadow=True)
+        
+        #ax2.yaxis.set_major_locator(MultipleLocator(0.0001))
+        #ax2.yaxis.set_major_formatter(FormatStrFormatter('% 1.2f'))
         
         return fig,((ax1,ax2),(ax3,ax4))
     

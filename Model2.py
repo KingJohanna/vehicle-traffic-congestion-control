@@ -46,15 +46,17 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
             #arriving_vehicle.initialize(position=self.queue.tail_position, direction=self.queue.direction)
             #self.queue.append(arriving_vehicle)
             #self.time_since_arrival = 0
-            self.generate_vehicle()
-            self.next_arrival_timestamp += self.time_until_arrival()
+            arriving_vehicle = self.generate_vehicle()
         
         if self.time_since_arrival > 0:
             self.arrivals += [self.arrivals[-1]]
         else:
             self.arrivals += [self.arrivals[-1]+1]
+            
+        self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
 
-        if random.random() < self.departure_probability(delta_t=delta_t, saturation_rate=saturation_rate):
+        #if random.random() < self.departure_probability(delta_t=delta_t, saturation_rate=saturation_rate):
+        if saturation_rate > 0:
             departing_vehicle = self.queue.remove()
             if departing_vehicle != None:
                 self.time_served = 0
@@ -69,7 +71,6 @@ class SingleQueueSimulator(BaseModel.QueueSimulator):
         
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
-        self.queue.update_tail_position()
         
         return arriving_vehicle, departing_vehicle
 
@@ -108,6 +109,7 @@ class ConnectedQueueSimulator(BaseModel.QueueSimulator):
                 self.time_served = 0
                 self.departures += [self.departures[-1]+1]
                 self.tot_wait_time += departing_vehicle.wait_time
+                departing_vehicle.wait_time = 0
                 departing_vehicle.accelerate()
             else:
                 self.departures += [self.departures[-1]]
@@ -182,7 +184,7 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         """
         self.grid_dimensions = (0,0)
         self.grid_distance = 0.
-        self.edge_type = MM1QueueSimulator
+        self.edge_type = SingleQueueSimulator
         self.intersection_type = FourWayIntersectionSimulator
         self.intersections = None
         self.grid_inds = []

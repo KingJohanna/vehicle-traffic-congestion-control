@@ -230,7 +230,7 @@ class AdaptiveTrafficLight(TrafficLight):
         self.switches = [0]
         self.sensor_depth = 0
         self.rule = 0
-        self.range = 40
+        self.range = 50
         
     def initialize(self, sensor_depth: int, rule=1):
         self.sensor_depth = sensor_depth
@@ -299,7 +299,7 @@ class AdaptiveTrafficLight(TrafficLight):
                         self.case = EMPTY
                     elif opposite_queue_length == queue_length:
                         self.case = EMPTY
-                    elif opposite_queue_length >= queue_length:
+                    elif opposite_queue_length > queue_length:
                         if opposite_queue_length-queue_length > 2:
                             self.case = EMPTY_OTHER_MIDWAY
                             self.objective_length = opposite_queue_length-queue_length
@@ -311,9 +311,7 @@ class AdaptiveTrafficLight(TrafficLight):
                 if opposite_queue_length >= 1 and queue_length < 2*self.sensor_depth:
                     if queue_length <= 0:
                         self.case = EMPTY_OTHER
-                    #elif queue_length == opposite_queue_length:
-                        #self.case = EMPTY_OTHER
-                    elif queue_length >= opposite_queue_length:
+                    elif queue_length > opposite_queue_length:
                         if queue_length-opposite_queue_length > 2:
                             self.case = EMPTY_MIDWAY
                             self.objective_length = queue_length-opposite_queue_length
@@ -350,7 +348,7 @@ class AdaptiveTrafficLight(TrafficLight):
             for platoon in opposite_platoons:
                 opposite_platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
                 
-            #print(self.time, len(platoons), len(opposite_platoons))
+            #print(self.time, platoon_metrics, opposite_platoon_metrics)
             
             if self.case == EMPTY_MIDWAY:
                 if len(platoons) <= self.objective_length:
@@ -373,28 +371,30 @@ class AdaptiveTrafficLight(TrafficLight):
                     self.case = EMPTY_OTHER
 
                 elif len(platoons) == 1 and len(opposite_platoons) == 1:
-                    distance = (vehicles[0].position[0]*vehicles[0].direction[0] + vehicles[0].position[1]*vehicles[0].direction[1]) - (vehicles[-1].tail_position[0]*vehicles[-1].direction[0] + vehicles[-1].tail_position[1]*vehicles[-1].direction[1])
-                    speed = vehicles[0].full_speed
-                    opposite_distance = (opposite_vehicles[0].position[0]*opposite_vehicles[0].direction[0] + opposite_vehicles[0].position[1]*opposite_vehicles[0].direction[1]) - (opposite_vehicles[-1].tail_position[0]*opposite_vehicles[-1].direction[0] + opposite_vehicles[-1].tail_position[1]*opposite_vehicles[-1].direction[1])
+                    distance = self.distance_to_sensor(position=vehicles[-1].position)
+                    speed = vehicles[-1].full_speed
+                    
+                    opposite_distance = self.distance_to_sensor(position=vehicles[-1].position)
                     opposite_speed = opposite_vehicles[0].full_speed
                     
                     cum_metric = platoon_metrics[0][1] + opposite_distance/opposite_speed
                     opposite_cum_metric = opposite_platoon_metrics[0][1] + distance/speed
-                    if cum_metric > opposite_cum_metric:
+                    
+                    if cum_metric >= opposite_cum_metric:
                         self.case = EMPTY
                     else:
                         self.case = EMPTY_OTHER
                         
-                    #print(cum_metric, opposite_cum_metric)
                 elif len(platoons) > 1 and len(opposite_platoons) > 1:
-                    distance = (platoons[0][0].position[0]*vehicles[0].direction[0] + platoons[0][0].position[1]*platoons[0][0].direction[1]) - (platoons[0][-1].tail_position[0]*platoons[0][-1].direction[0] + platoons[0][-1].tail_position[1]*platoons[0][-1].direction[1])
-                    speed = platoons[0][0].full_speed
-                    opposite_distance = (opposite_platoons[0][0].position[0]*opposite_platoons[0][0].direction[0] + opposite_platoons[0][0].position[1]*opposite_platoons[0][0].direction[1]) - (opposite_platoons[0][-1].tail_position[0]*opposite_platoons[0][-1].direction[0] + opposite_platoons[0][-1].tail_position[1]*opposite_platoons[0][-1].direction[1])
+                    distance = self.distance_to_sensor(position=platoons[0][-1].position)
+                    speed = platoons[0][-1].full_speed
+                    
+                    opposite_distance = self.distance_to_sensor(position=platoons[0][-1].position)
                     opposite_speed = opposite_platoons[0][0].full_speed
 
-                    cum_metric = opposite_distance/opposite_speed + sum(metric[1] for metric in platoon_metrics)
+                    cum_metric = opposite_distance/opposite_speed + sum([metric[1] for metric in platoon_metrics])
                     cum_metric /= len(platoons)
-                    opposite_cum_metric = distance/speed + sum(metric[1] for metric in opposite_platoon_metrics)
+                    opposite_cum_metric = distance/speed + sum([metric[1] for metric in opposite_platoon_metrics])
                     opposite_cum_metric /= len(opposite_platoons)
 
                     if cum_metric >= opposite_cum_metric:
