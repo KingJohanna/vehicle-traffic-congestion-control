@@ -43,12 +43,16 @@ class PoissonQueueSimulator(BaseModel.QueueSimulator):
         """
         self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
-        arriving_vehicle = None
+        arriving_vehicles = []
         departing_vehicle = None
         
         if self.random_variable < self.arrival_probability(): # TODO fix for non-homogeneous arrivals
-            arriving_vehicle = self.generate_vehicle()
-            self.arrivals += [self.arrivals[-1]+1]
+            platoon_size = np.random.choice(range(1,len(self.queue.platoon_size_distribution)+1), p=self.queue.platoon_size_distribution)
+            
+            for i in range(platoon_size):
+                arriving_vehicles += [self.generate_vehicle()]
+            
+            self.arrivals += [self.arrivals[-1]+platoon_size]
             self.random_variable = random.random()
         else:
             self.arrivals += [self.arrivals[-1]]
@@ -76,7 +80,7 @@ class PoissonQueueSimulator(BaseModel.QueueSimulator):
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
         
-        return arriving_vehicle, departing_vehicle
+        return arriving_vehicles, departing_vehicle
     
 class ConnectedQueueSimulator(BaseModel.QueueSimulator):
     def time_to_depart(self) -> float:

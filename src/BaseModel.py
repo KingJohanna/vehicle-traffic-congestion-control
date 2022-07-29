@@ -37,8 +37,9 @@ class Queue:
         self.queue_length = 0
         self.arrival_rate = 0
         self.departure_rate = 0
+        self.platoon_size_distribution = []
     
-    def initialize(self, avg_departure_time: float, direction: (int, int), head_position: (float, float), arrival_rate=lambda t: 0) -> None:
+    def initialize(self, avg_departure_time: float, direction: (int, int), head_position: (float, float), arrival_rate=lambda t: 0, platoon_size_distribution=[1.]) -> None:
         """
         Initializes the Queue instance.
         
@@ -57,6 +58,7 @@ class Queue:
         self.head_position = head_position
         self.tail_position = head_position
         self.edge_position = (head_position[0]-direction[0]*50, head_position[1]-direction[1]*50)
+        self.platoon_size_distribution = platoon_size_distribution
     
     def append(self, vehicle: Vehicle.Vehicle) -> bool:
         """
@@ -215,7 +217,7 @@ class QueueSimulator:
         self.edge = True
         self.random_variable = random.random()
         
-    def initialize(self, avg_departure_time=np.inf, arrival_rate=lambda t: 0, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
+    def initialize(self, avg_departure_time=np.inf, arrival_rate=lambda t: 0, direction=Vehicle.NORTH, head_position=(0.,0.), platoon_size_distribution=[1.]) -> None:
         """
         Initializes the QueueSimulator instance.
         
@@ -228,7 +230,7 @@ class QueueSimulator:
         head_position : (float, float) (optional)
             Position of the queue's head. Defaults to (0.,0.).
         """
-        self.queue.initialize(arrival_rate=arrival_rate, avg_departure_time=avg_departure_time, direction=direction, head_position=head_position)
+        self.queue.initialize(arrival_rate=arrival_rate, avg_departure_time=avg_departure_time, direction=direction, head_position=head_position, platoon_size_distribution=platoon_size_distribution)
         
     def initialize_plot(self, position, plt) -> None:
         if self.queue.direction == Vehicle.NORTH:
@@ -503,7 +505,7 @@ class FourWayIntersectionSimulator:
         self.queue_s.direction = Vehicle.SOUTH
         self.queue_e.direction = Vehicle.EAST
         
-    def initialize_queues(self, avg_departure_time: float, arrival_rate_n=0, arrival_rate_e=0, arrival_rate_s=0, arrival_rate_w=0) -> None:
+    def initialize_queues(self, avg_departure_time: float, arrival_rate_n=0, arrival_rate_e=0, arrival_rate_s=0, arrival_rate_w=0, platoon_size_distribution=[1.]) -> None:
         """
         Initializes the queues of the intersection.
         
@@ -518,10 +520,10 @@ class FourWayIntersectionSimulator:
         arrival_rate_e : float (optional)
             The average time between arrivals to the eastbound queue. Defaults to infinity.
         """
-        self.queue_n.initialize(arrival_rate=arrival_rate_n, avg_departure_time=avg_departure_time, direction=self.queue_n.direction, head_position=self.queue_n.head_position)
-        self.queue_w.initialize(arrival_rate=arrival_rate_w, avg_departure_time=avg_departure_time, direction=self.queue_w.direction, head_position=self.queue_w.head_position)
-        self.queue_s.initialize(arrival_rate=arrival_rate_s, avg_departure_time=avg_departure_time, direction=self.queue_s.direction, head_position=self.queue_s.head_position)
-        self.queue_e.initialize(arrival_rate=arrival_rate_e, avg_departure_time=avg_departure_time, direction=self.queue_e.direction, head_position=self.queue_e.head_position)
+        self.queue_n.initialize(arrival_rate=arrival_rate_n, avg_departure_time=avg_departure_time, direction=self.queue_n.direction, head_position=self.queue_n.head_position, platoon_size_distribution=platoon_size_distribution)
+        self.queue_w.initialize(arrival_rate=arrival_rate_w, avg_departure_time=avg_departure_time, direction=self.queue_w.direction, head_position=self.queue_w.head_position, platoon_size_distribution=platoon_size_distribution)
+        self.queue_s.initialize(arrival_rate=arrival_rate_s, avg_departure_time=avg_departure_time, direction=self.queue_s.direction, head_position=self.queue_s.head_position, platoon_size_distribution=platoon_size_distribution)
+        self.queue_e.initialize(arrival_rate=arrival_rate_e, avg_departure_time=avg_departure_time, direction=self.queue_e.direction, head_position=self.queue_e.head_position, platoon_size_distribution=platoon_size_distribution)
         
     def run_event(self, delta_t: float, animate=False, plt=None) -> list:
         """
@@ -587,10 +589,10 @@ class FourWayIntersectionSimulator:
         arrivals = []
         departures = []
         
-        arriving_vehicle_n, departing_vehicle_n = self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t)*h_free, animate=animate, plt=plt)
-        arriving_vehicle_w, departing_vehicle_w = self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t)*v_free, animate=animate, plt=plt)
-        arriving_vehicle_s, departing_vehicle_s = self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t)*h_free, animate=animate, plt=plt)
-        arriving_vehicle_e, departing_vehicle_e = self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t)*v_free, animate=animate, plt=plt)
+        arriving_vehicles_n, departing_vehicle_n = self.queue_n.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t)*h_free, animate=animate, plt=plt)
+        arriving_vehicles_w, departing_vehicle_w = self.queue_w.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t)*v_free, animate=animate, plt=plt)
+        arriving_vehicles_s, departing_vehicle_s = self.queue_s.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ns.saturation_rate(delta_t=delta_t)*h_free, animate=animate, plt=plt)
+        arriving_vehicles_e, departing_vehicle_e = self.queue_e.run_event(delta_t=delta_t, saturation_rate=self.traffic_light_ew.saturation_rate(delta_t=delta_t)*v_free, animate=animate, plt=plt)
         
         if departing_vehicle_n != None:
             departures += [departing_vehicle_n]
@@ -608,29 +610,29 @@ class FourWayIntersectionSimulator:
             departures += [departing_vehicle_e]
             self.horizontal_crossers += [departing_vehicle_e]
             
-        if arriving_vehicle_n != None:
-            arrivals += [arriving_vehicle_n]
+        if len(arriving_vehicles_n) > 0:
+            arrivals += arriving_vehicles_n
             self.arrivals += 1
             
             if self.traffic_light_ns.saturation_rate() > 0:
                 self.arrivals_on_green += 1
             
-        if arriving_vehicle_w != None:
-            arrivals += [arriving_vehicle_w]
+        if len(arriving_vehicles_e) > 0:
+            arrivals += arriving_vehicles_e
             self.arrivals += 1
             
             if self.traffic_light_ew.saturation_rate() > 0:
                 self.arrivals_on_green += 1
             
-        if arriving_vehicle_s != None:
-            arrivals += [arriving_vehicle_s]
+        if len(arriving_vehicles_s) > 0:
+            arrivals += arriving_vehicles_s
             self.arrivals += 1
             
             if self.traffic_light_ns.saturation_rate() > 0:
                 self.arrivals_on_green += 1
             
-        if arriving_vehicle_e != None:
-            arrivals += [arriving_vehicle_e]
+        if len(arriving_vehicles_w) > 0:
+            arrivals += arriving_vehicles_w
             self.arrivals += 1
             
             if self.traffic_light_ew.saturation_rate() > 0:
@@ -724,7 +726,7 @@ class IntersectionNetworkSimulator:
                 
             self.intersections[grid_ind].initialize_structure(position=(grid_ind[1]*grid_distance, -grid_ind[0]*grid_distance))
     
-    def set_queue_rate_parameters(self, grid_ind: (int,int), avg_departure_time: float, arrival_rate_n=0, arrival_rate_w=0, arrival_rate_s=0, arrival_rate_e=0) -> None:
+    def set_queue_rate_parameters(self, grid_ind: (int,int), avg_departure_time: float, arrival_rate_n=0, arrival_rate_w=0, arrival_rate_s=0, arrival_rate_e=0, platoon_size_distribution=[1.]) -> None:
         """
         Sets the departure/arrival rates of the queues within the intersection.
         
@@ -741,7 +743,7 @@ class IntersectionNetworkSimulator:
         arrival_rate_e : float (optional)
             The average time [s] between arrivals to the eastbound queue. Defaults to infinity.
         """
-        self.intersections[grid_ind].initialize_queues(avg_departure_time=avg_departure_time, arrival_rate_n=arrival_rate_n, arrival_rate_w=arrival_rate_w, arrival_rate_s=arrival_rate_s, arrival_rate_e=arrival_rate_e)
+        self.intersections[grid_ind].initialize_queues(avg_departure_time=avg_departure_time, arrival_rate_n=arrival_rate_n, arrival_rate_w=arrival_rate_w, arrival_rate_s=arrival_rate_s, arrival_rate_e=arrival_rate_e, platoon_size_distribution=platoon_size_distribution)
     
     def set_traffic_lights(self, grid_ind: (int,int), traffic_light_ns: TrafficLight.TrafficLight, traffic_light_ew: TrafficLight.TrafficLight) -> None:
         """
@@ -776,7 +778,7 @@ class IntersectionNetworkSimulator:
         for grid_ind in self.grid_inds:
             intersection = self.intersections[grid_ind]
                 
-            network.set_queue_rate_parameters(grid_ind=grid_ind, avg_departure_time=1/intersection.queue_n.queue.departure_rate, arrival_rate_n=intersection.queue_n.queue.arrival_rate, arrival_rate_w=intersection.queue_w.queue.arrival_rate, arrival_rate_s=intersection.queue_s.queue.arrival_rate, arrival_rate_e=intersection.queue_e.queue.arrival_rate)
+            network.set_queue_rate_parameters(grid_ind=grid_ind, avg_departure_time=1/intersection.queue_n.queue.departure_rate, arrival_rate_n=intersection.queue_n.queue.arrival_rate, arrival_rate_w=intersection.queue_w.queue.arrival_rate, arrival_rate_s=intersection.queue_s.queue.arrival_rate, arrival_rate_e=intersection.queue_e.queue.arrival_rate, platoon_size_distribution=queue_n.platoon_size_distribution)
             
             traffic_light_ns = intersection.traffic_light_ns.reset()
             traffic_light_ew = intersection.traffic_light_ew.reset()
