@@ -128,7 +128,7 @@ class ConnectedQueueSimulator(BaseModel.QueueSimulator):
         self.queue_length += [self.queue.queue_length]
         self.time_step(delta_t=delta_t)
         
-        return None, departing_vehicle
+        return [], departing_vehicle
     
 class FourWayIntersectionSimulator(BaseModel.FourWayIntersectionSimulator):
     def __init__(self):
