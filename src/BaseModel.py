@@ -38,11 +38,11 @@ class Queue:
         self.arrival_rate = 0
         self.departure_rate = 0
     
-    def initialize(self, avg_departure_time: float, direction: (int, int), head_position: (float, float), avg_arrival_time=np.inf) -> None:
+    def initialize(self, avg_departure_time: float, direction: (int, int), head_position: (float, float), arrival_rate=lambda t: 0) -> None:
         """
         Initializes the Queue instance.
         
-        avg_arrival_time : float (optional)
+        arrival_rate : float (optional)
             The average time [s] between arrivals to the queue. Defaults to infinity.
         avg_departure_time : float
             The average time [s] between departures from the queue.
@@ -51,7 +51,7 @@ class Queue:
         head_position : (float, float)
             Position of the queue's head.
         """
-        self.arrival_rate = 1/avg_arrival_time
+        self.arrival_rate = arrival_rate
         self.departure_rate = 1/avg_departure_time
         self.direction = direction
         self.head_position = head_position
@@ -164,7 +164,7 @@ class ConnectedQueue(Queue):
         """
         Initializes the Queue instance.
         
-        avg_arrival_time : float (optional)
+        arrival_rate : float (optional)
             The average time [s] between arrivals to the queue. Defaults to infinity.
         avg_departure_time : float
             The average time [s] between departures from the queue.
@@ -204,7 +204,7 @@ class QueueSimulator:
         """
         self.queue = Queue()
         self.time = 0
-        self.time_since_arrival = np.inf
+        self.time_since_arrival = 0
         self.time_served = 0
         self.queue_length = [0]
         self.departures = [0]
@@ -213,12 +213,13 @@ class QueueSimulator:
         self.next_arrival_timestamp = 0
         self.visual = None
         self.edge = True
+        self.random_variable = random.random()
         
-    def initialize(self, avg_departure_time=np.inf, avg_arrival_time=np.inf, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
+    def initialize(self, avg_departure_time=np.inf, arrival_rate=lambda t: 0, direction=Vehicle.NORTH, head_position=(0.,0.)) -> None:
         """
         Initializes the QueueSimulator instance.
         
-        avg_arrival_time (optional) : float
+        arrival_rate (optional) : float
             The average time [s] between arrivals to the queue. Defaults to infinity.
         avg_departure_time (optional): float
             The average time [s] between departures from the queue. Defaults to infinity.
@@ -227,7 +228,7 @@ class QueueSimulator:
         head_position : (float, float) (optional)
             Position of the queue's head. Defaults to (0.,0.).
         """
-        self.queue.initialize(avg_arrival_time=avg_arrival_time, avg_departure_time=avg_departure_time, direction=direction, head_position=head_position)
+        self.queue.initialize(arrival_rate=arrival_rate, avg_departure_time=avg_departure_time, direction=direction, head_position=head_position)
         
     def initialize_plot(self, position, plt) -> None:
         if self.queue.direction == Vehicle.NORTH:
@@ -374,7 +375,8 @@ class QueueSimulator:
          #   vehicle.initialize(position=(tail_position[0]-3*self.queue.direction[0], tail_position[1]-3*self.queue.direction[1]), direction=self.queue.direction)
         #else:
          #   vehicle.initialize(position=self.queue.edge_position, direction=self.queue.direction)
-            
+           
+        self.time_since_arrival = 0
         self.queue.last_arriving_vehicle = vehicle
         
         return vehicle
@@ -386,9 +388,8 @@ class QueueSimulator:
         arriving_vehicle: Vehicle.Vehicle
             The vehicle to be added to the queue.
         """
-        if self.queue.append(arriving_vehicle):
-            self.time_since_arrival = 0
-            self.arrivals += [self.arrivals[-1]+1]
+        self.queue.append(arriving_vehicle)
+            #self.arrivals += [self.arrivals[-1]+1]
     
 class FourWayIntersectionSimulator:
     def __init__(self):
@@ -502,25 +503,25 @@ class FourWayIntersectionSimulator:
         self.queue_s.direction = Vehicle.SOUTH
         self.queue_e.direction = Vehicle.EAST
         
-    def initialize_queues(self, avg_departure_time: float, avg_arrival_time_n=np.inf, avg_arrival_time_w=np.inf, avg_arrival_time_s=np.inf, avg_arrival_time_e=np.inf) -> None:
+    def initialize_queues(self, avg_departure_time: float, arrival_rate_n=0, arrival_rate_e=0, arrival_rate_s=0, arrival_rate_w=0) -> None:
         """
         Initializes the queues of the intersection.
         
         avg_departure_time : float
             The average time between departures.
-        avg_arrival_time_n : float (optional)
+        arrival_rate_n : float (optional)
             The average time between arrivals to the northbound queue. Defaults to infinity.
-        avg_arrival_time_w : float (optional)
+        arrival_rate_w : float (optional)
             The average time between arrivals to the westbound queue. Defaults to infinity.
-        avg_arrival_time_s : float (optional)
+        arrival_rate_s : float (optional)
             The average time between arrivals to the southbound queue. Defaults to infinity.
-        avg_arrival_time_e : float (optional)
+        arrival_rate_e : float (optional)
             The average time between arrivals to the eastbound queue. Defaults to infinity.
         """
-        self.queue_n.initialize(avg_arrival_time=avg_arrival_time_n, avg_departure_time=avg_departure_time, direction=self.queue_n.direction, head_position=self.queue_n.head_position)
-        self.queue_w.initialize(avg_arrival_time=avg_arrival_time_w, avg_departure_time=avg_departure_time, direction=self.queue_w.direction, head_position=self.queue_w.head_position)
-        self.queue_s.initialize(avg_arrival_time=avg_arrival_time_s, avg_departure_time=avg_departure_time, direction=self.queue_s.direction, head_position=self.queue_s.head_position)
-        self.queue_e.initialize(avg_arrival_time=avg_arrival_time_e, avg_departure_time=avg_departure_time, direction=self.queue_e.direction, head_position=self.queue_e.head_position)
+        self.queue_n.initialize(arrival_rate=arrival_rate_n, avg_departure_time=avg_departure_time, direction=self.queue_n.direction, head_position=self.queue_n.head_position)
+        self.queue_w.initialize(arrival_rate=arrival_rate_w, avg_departure_time=avg_departure_time, direction=self.queue_w.direction, head_position=self.queue_w.head_position)
+        self.queue_s.initialize(arrival_rate=arrival_rate_s, avg_departure_time=avg_departure_time, direction=self.queue_s.direction, head_position=self.queue_s.head_position)
+        self.queue_e.initialize(arrival_rate=arrival_rate_e, avg_departure_time=avg_departure_time, direction=self.queue_e.direction, head_position=self.queue_e.head_position)
         
     def run_event(self, delta_t: float, animate=False, plt=None) -> list:
         """
@@ -692,7 +693,7 @@ class IntersectionNetworkSimulator:
         self.avg_wait_time = 0.
         self.observable_intersection_grid_inds = []
         
-    def initialize(self, grid_dimensions: (int,int), grid_distance=250):
+    def initialize(self, grid_dimensions: (int,int), grid_distance=150):
         """
         Initializes the IntersectionNetworkSimulator instance.
         
@@ -723,7 +724,7 @@ class IntersectionNetworkSimulator:
                 
             self.intersections[grid_ind].initialize_structure(position=(grid_ind[1]*grid_distance, -grid_ind[0]*grid_distance))
     
-    def set_queue_rate_parameters(self, grid_ind: (int,int), avg_departure_time: float, avg_arrival_time_n=np.inf, avg_arrival_time_w=np.inf, avg_arrival_time_s=np.inf, avg_arrival_time_e=np.inf) -> None:
+    def set_queue_rate_parameters(self, grid_ind: (int,int), avg_departure_time: float, arrival_rate_n=0, arrival_rate_w=0, arrival_rate_s=0, arrival_rate_e=0) -> None:
         """
         Sets the departure/arrival rates of the queues within the intersection.
         
@@ -731,16 +732,16 @@ class IntersectionNetworkSimulator:
             The grid index of the intersection.
         avg_departure_rate : float
             The average time [s] between departures.
-        avg_arrival_time_n : float (optional)
+        arrival_rate_n : float (optional)
             The average time [s] between arrivals to the northbound queue. Defaults to infinity.
-        avg_arrival_time_w : float (optional)
+        arrival_rate_w : float (optional)
             The average time [s] between arrivals to the westbound queue. Defaults to infinity.
-        avg_arrival_time_s : float (optional)
+        arrival_rate_s : float (optional)
             The average time [s] between arrivals to the southbound queue. Defaults to infinity.
-        avg_arrival_time_e : float (optional)
+        arrival_rate_e : float (optional)
             The average time [s] between arrivals to the eastbound queue. Defaults to infinity.
         """
-        self.intersections[grid_ind].initialize_queues(avg_departure_time=avg_departure_time, avg_arrival_time_n=avg_arrival_time_n, avg_arrival_time_w=avg_arrival_time_w, avg_arrival_time_s=avg_arrival_time_s, avg_arrival_time_e=avg_arrival_time_e)
+        self.intersections[grid_ind].initialize_queues(avg_departure_time=avg_departure_time, arrival_rate_n=arrival_rate_n, arrival_rate_w=arrival_rate_w, arrival_rate_s=arrival_rate_s, arrival_rate_e=arrival_rate_e)
     
     def set_traffic_lights(self, grid_ind: (int,int), traffic_light_ns: TrafficLight.TrafficLight, traffic_light_ew: TrafficLight.TrafficLight) -> None:
         """
@@ -774,22 +775,8 @@ class IntersectionNetworkSimulator:
         
         for grid_ind in self.grid_inds:
             intersection = self.intersections[grid_ind]
-            
-            avg_arrival_time_n = np.inf
-            avg_arrival_time_e = np.inf
-            avg_arrival_time_s = np.inf
-            avg_arrival_time_w = np.inf
-            
-            if intersection.queue_n.queue.arrival_rate > 0:
-                avg_arrival_time_n=1/intersection.queue_n.queue.arrival_rate
-            if intersection.queue_e.queue.arrival_rate > 0:
-                avg_arrival_time_e=1/intersection.queue_e.queue.arrival_rate
-            if intersection.queue_s.queue.arrival_rate > 0:
-                avg_arrival_time_s=1/intersection.queue_s.queue.arrival_rate
-            if intersection.queue_w.queue.arrival_rate > 0:
-                avg_arrival_time_w=1/intersection.queue_w.queue.arrival_rate
                 
-            network.set_queue_rate_parameters(grid_ind=grid_ind, avg_departure_time=1/intersection.queue_n.queue.departure_rate, avg_arrival_time_n=avg_arrival_time_n, avg_arrival_time_w=avg_arrival_time_w, avg_arrival_time_s=avg_arrival_time_s, avg_arrival_time_e=avg_arrival_time_e)
+            network.set_queue_rate_parameters(grid_ind=grid_ind, avg_departure_time=1/intersection.queue_n.queue.departure_rate, arrival_rate_n=intersection.queue_n.queue.arrival_rate, arrival_rate_w=intersection.queue_w.queue.arrival_rate, arrival_rate_s=intersection.queue_s.queue.arrival_rate, arrival_rate_e=intersection.queue_e.queue.arrival_rate)
             
             traffic_light_ns = intersection.traffic_light_ns.reset()
             traffic_light_ew = intersection.traffic_light_ew.reset()
@@ -819,7 +806,7 @@ class IntersectionNetworkSimulator:
         
         return fig, ax
 
-    def simulate(self, delta_t: float, end_time: float, fig_width=4, animate=False, file_name="simulation.mp4", output_destination="./data/vids/", speed=1) -> None:
+    def simulate(self, delta_t: float, end_time: float, fig_width=4, animate=False, file_name="simulation.mp4", output_destination="../data/vids/", speed=1) -> None:
         if animate:
             FFMpegWriter = manimation.writers['ffmpeg']
             metadata = dict(title='Simulation', artist='Matplotlib',
@@ -831,7 +818,7 @@ class IntersectionNetworkSimulator:
             fig, ax = self.initialize_plot((fig_width, fig_height), plt)
             text = plt.gcf().text(0, 0.95, "Elapsed time: 0s", fontsize=14)
 
-            with writer.saving(fig, output_destination+file_name, 100):
+            with writer.saving(fig, Path(output_destination) / file_name, 100):
                 while self.time < end_time:
                     self.run_event(delta_t=delta_t, animate=True, plt=plt)
                     text.set_text("Elapsed time: "+str(round(self.time,1))+"s")
@@ -1242,7 +1229,7 @@ class QueueEstimator():
         """
         Initializes the QueueSimulator instance.
         
-        avg_arrival_time (optional) : float
+        arrival_rate (optional) : float
             The average time [s] between arrivals to the queue. Defaults to infinity.
         avg_departure_time (optional): float
             The average time [s] between departures from the queue. Defaults to infinity.

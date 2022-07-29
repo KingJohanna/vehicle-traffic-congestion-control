@@ -7,18 +7,30 @@ import Vehicle
 import TrafficLight
 import math
     
-class MM1QueueSimulator(BaseModel.QueueSimulator):    
+class PoissonQueueSimulator(BaseModel.QueueSimulator):    
     def time_until_arrival(self) -> float:
         """
         Returns a sampled time until next arrival [s]. 
         """
-        return np.random.exponential(scale=1/self.queue.arrival_rate)
+        rate = self.queue.arrival_rate(self.time)
+        if rate > 0:
+            return np.random.exponential(scale=1/rate)
+        else:
+            return np.inf
     
     def time_to_depart(self) -> float:
         """
         Returns a sampled time to depart [s].
         """
         return np.random.exponential(scale=1/self.queue.departure_rate)
+    
+    def arrival_probability(self) -> float:
+        rate = self.queue.arrival_rate(self.time)
+        
+        if rate > 0:
+            return expon.cdf(self.time_since_arrival, scale=1/rate)
+        
+        return 0
     
     def run_event(self, delta_t: float, saturation_rate: float, animate=False, plt=None) -> Vehicle.Vehicle:
         """
@@ -34,14 +46,12 @@ class MM1QueueSimulator(BaseModel.QueueSimulator):
         arriving_vehicle = None
         departing_vehicle = None
         
-        if self.time >= self.next_arrival_timestamp:
+        if self.random_variable < self.arrival_probability(): # TODO fix for non-homogeneous arrivals
             arriving_vehicle = self.generate_vehicle()
-            self.next_arrival_timestamp += self.time_until_arrival()
-        
-        if self.time_since_arrival > 0:
-            self.arrivals += [self.arrivals[-1]]
-        else:
             self.arrivals += [self.arrivals[-1]+1]
+            self.random_variable = random.random()
+        else:
+            self.arrivals += [self.arrivals[-1]]
         
         self.update_vehicle_positions(delta_t=delta_t, saturation_rate=saturation_rate)
         
@@ -179,7 +189,7 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         """
         self.grid_dimensions = (0,0)
         self.grid_distance = 0.
-        self.edge_type = MM1QueueSimulator
+        self.edge_type = PoissonQueueSimulator
         self.intersection_type = FourWayIntersectionSimulator
         self.intersections = None
         self.grid_inds = []
@@ -190,3 +200,4 @@ class IntersectionNetworkSimulator(BaseModel.IntersectionNetworkSimulator):
         self.observations = []
         self.avg_wait_time = 0.
         self.observable_intersection_grid_inds = []
+        self.homogeneous = True
