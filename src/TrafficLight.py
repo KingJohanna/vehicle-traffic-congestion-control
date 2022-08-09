@@ -45,6 +45,9 @@ class TrafficLight:
     def initialize_plot(self, plt) -> None:
         for i,pos in enumerate(self.positions):
             self.visuals[i], = plt.plot(pos[0], pos[1], 'o', markersize = 6)
+            
+        if self.adaptive:
+            self.text = plt.text(self.sensor_position[0]+12, self.sensor_position[1]-12, ' \n ', ha="left", va="top", fontsize=8)
 
     def update_plot(self) -> None:
         if bool(self.service):
@@ -53,6 +56,21 @@ class TrafficLight:
         else:
             for vis in self.visuals:
                 vis.set_color('red')
+                
+        if self.adaptive:
+            platoon_metrics = [(metric[0],round(metric[1],1)) for metric in self.platoon_metrics]
+            opposite_platoon_metrics = [(metric[0],round(metric[1],1)) for metric in self.opposite_platoon_metrics]
+            
+            congestion = ''
+            opposite_congestion = ''
+            
+            if self.congestion != None:
+                congestion = self.congestion
+                
+            if self.opposite_congestion != None:
+                opposite_congestion = self.opposite_congestion
+              
+            self.text.set_text(congestion+'\n'+opposite_congestion)
                 
     def plot_green_light(self, ax, time):
         y_lim = ax.get_ylim()
@@ -208,13 +226,15 @@ class MemoryLessTrafficLight(TrafficLight):
         return self.service
     
 class AdaptiveTrafficLight(TrafficLight):
-    global EMPTY, EMPTY_OTHER, EMPTY_MIDWAY, EMPTY_OTHER_MIDWAY, WAIT
+    global EMPTY, EMPTY_OTHER, EMPTY_MIDWAY, EMPTY_OTHER_MIDWAY, WAIT_FOR_VEHICLE, WAIT_FOR_OTHER_VEHICLE, IDLE
     
     EMPTY = 0
     EMPTY_OTHER = 1
     EMPTY_MIDWAY = 2
     EMPTY_OTHER_MIDWAY = 3
-    WAIT = 4
+    WAIT_FOR_VEHICLE = 4
+    WAIT_FOR_OTHER_VEHICLE = 5
+    IDLE = 6
     
     def __init__(self):
         self.visuals = [None, None]
@@ -225,13 +245,20 @@ class AdaptiveTrafficLight(TrafficLight):
         self.time = 0
         self.adaptive = True
         self.objective_length = 0
-        self.case = WAIT
+        self.case = IDLE
         self.num_cycles = [0]
         self.switches = [0]
         self.sensor_depth = 0
         self.rule = 0
         self.range = 50
         self.vehicle_to_leave = None
+        self.count = 0
+        self.opposite_count = 0
+        self.platoon_metrics = []
+        self.opposite_platoon_metrics = []
+        self.congestion = None
+        self.opposite_congestion = None
+        self.text = None
         
     def initialize(self, sensor_depth: int, rule=1):
         self.sensor_depth = sensor_depth
@@ -281,48 +308,75 @@ class AdaptiveTrafficLight(TrafficLight):
             queue_length = len(vehicles)
             opposite_queue_length = len(opposite_vehicles)
             
+            self.count = queue_length
+            self.opposite_count = opposite_queue_length
+            
             if self.case == EMPTY_MIDWAY:
                 if queue_length <= self.objective_length:
                     self.case = EMPTY_OTHER
+                    self.congestion = str(queue_length)
+                    self.opposite_congestion = str(opposite_queue_length)
             elif self.case == EMPTY_OTHER_MIDWAY:
                 if opposite_queue_length <= self.objective_length:
                     self.case = EMPTY
+                    self.congestion = str(queue_length)
+                    self.opposite_congestion = str(opposite_queue_length)
 
             if self.case == EMPTY:
                 if queue_length <= 0:
-                    self.case = WAIT
+                    self.case = IDLE
             elif self.case == EMPTY_OTHER:
                 if opposite_queue_length <= 0:
-                    self.case = WAIT
+                    self.case = IDLE
 
-            if self.case == WAIT:
+            if self.case == IDLE:
+                self.congestion = 'idle'
+                self.opposite_congestion = 'idle'
+                
                 if queue_length >= 1 and opposite_queue_length < 2*self.sensor_depth:
                     if opposite_queue_length <= 0:
                         self.case = EMPTY
+                        self.congestion = str(queue_length)
+                        self.opposite_congestion = str(opposite_queue_length)
                     elif opposite_queue_length == queue_length:
                         self.case = EMPTY
+                        self.congestion = str(queue_length)
+                        self.opposite_congestion = str(opposite_queue_length)
                     elif opposite_queue_length > queue_length:
                         if opposite_queue_length-queue_length > 2:
                             self.case = EMPTY_OTHER_MIDWAY
                             self.objective_length = opposite_queue_length-queue_length
+                            self.congestion = str(queue_length)
+                            self.opposite_congestion = str(opposite_queue_length)
                         else:
                             self.case = EMPTY_OTHER
+                            self.congestion = str(queue_length)
+                            self.opposite_congestion = str(opposite_queue_length)
                 elif queue_length == 1 and opposite_queue_length >= 2*self.sensor_depth:
                     self.case = EMPTY
+                    self.congestion = str(queue_length)
+                    self.opposite_congestion = str(opposite_queue_length)
 
                 if opposite_queue_length >= 1 and queue_length < 2*self.sensor_depth:
                     if queue_length <= 0:
                         self.case = EMPTY_OTHER
+                        self.congestion = str(queue_length)
+                        self.opposite_congestion = str(opposite_queue_length)
                     elif queue_length > opposite_queue_length:
                         if queue_length-opposite_queue_length > 2:
                             self.case = EMPTY_MIDWAY
                             self.objective_length = queue_length-opposite_queue_length
+                            self.congestion = str(queue_length)
+                            self.opposite_congestion = str(opposite_queue_length)
                         else:
                             self.case = EMPTY
+                            self.congestion = str(queue_length)
+                            self.opposite_congestion = str(opposite_queue_length)
                 elif opposite_queue_length == 1 and queue_length >= 2*self.sensor_depth:
                     self.case = EMPTY_OTHER
-                                
-        elif self.rule == 2:
+                    self.congestion = str(queue_length)
+                    self.opposite_congestion = str(opposite_queue_length)
+        else:
             platoons = []
             if len(vehicles) > 0:
                 platoons = [[vehicles[0]]]
@@ -337,87 +391,175 @@ class AdaptiveTrafficLight(TrafficLight):
                     platoons[-1] += [vehicles[i]]
                 else:
                     platoons += [[vehicles[i]]]
+                    
+            platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
               
             for platoon in platoons:
                 platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
+            self.platoon_metrics = platoon_metrics
             
             for i in range(1, len(opposite_vehicles)):
                 if (opposite_vehicles[i].direction == Vehicle.NORTH and opposite_vehicles[i-1].tail_position[1]-opposite_vehicles[i].position[1] <= opposite_vehicles[i].length) or (opposite_vehicles[i].direction == Vehicle.EAST and opposite_vehicles[i-1].tail_position[0]-opposite_vehicles[i].position[0] <= opposite_vehicles[i].length) or (opposite_vehicles[i].direction == Vehicle.SOUTH and opposite_vehicles[i].position[1]-opposite_vehicles[i-1].tail_position[1] <= opposite_vehicles[i].length) or (opposite_vehicles[i].direction == Vehicle.WEST and opposite_vehicles[i].position[0]-opposite_vehicles[i-1].tail_position[0] <= opposite_vehicles[i].length):
                     opposite_platoons[-1] += [opposite_vehicles[i]]
                 else:
                     opposite_platoons += [[opposite_vehicles[i]]]
-                    
+            
+            opposite_platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
+            
             for platoon in opposite_platoons:
                 opposite_platoon_metrics += [(len(platoon), sum([vehicle.wait_time for vehicle in platoon])/len(platoon))]
-                
+            self.opposite_platoon_metrics = opposite_platoon_metrics
+        
             #print(self.time, platoon_metrics, opposite_platoon_metrics)
-            
-            if self.case == EMPTY_MIDWAY or self.case == EMPTY:
-                if len(platoons) <= 0 or True not in [self.vehicle_to_leave in platoon for platoon in platoons]:
-                    self.case = WAIT
-            elif self.case == EMPTY_OTHER_MIDWAY or self.case == EMPTY_OTHER:
-                if len(opposite_platoons) <= 0 or True not in [self.vehicle_to_leave in platoon for platoon in opposite_platoons]:
-                    self.case = WAIT
+            self.count = len(platoons)
+            self.opposite_count = len(opposite_platoons)
                     
-            if self.case == WAIT:
-                if len(opposite_platoons) <= 0 and len(platoons) > 0:
-                    self.case = EMPTY
-                    platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
-                    self.vehicle_to_leave = platoons[0][-1]
-                    
-                elif len(platoons) <= 0 and len(opposite_platoons) > 0:
-                    self.case = EMPTY_OTHER
-                    opposite_platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
-                    self.vehicle_to_leave = opposite_platoons[0][-1]
-
-                elif len(platoons) == 1 and len(opposite_platoons) == 1:
-                    distance = self.distance_to_sensor(position=vehicles[-1].position)
-                    speed = vehicles[-1].full_speed
-                    
-                    opposite_distance = self.distance_to_sensor(position=vehicles[-1].position)
-                    opposite_speed = opposite_vehicles[0].full_speed
-                    
-                    cum_metric = platoon_metrics[0][1] + opposite_distance/opposite_speed
-                    opposite_cum_metric = opposite_platoon_metrics[0][1] + distance/speed
-                    
-                    if cum_metric >= opposite_cum_metric:
-                        self.case = EMPTY
-                        self.vehicle_to_leave = platoons[0][-1]
-                    else:
-                        self.case = EMPTY_OTHER
-                        self.vehicle_to_leave = opposite_platoons[0][-1]
+            if self.rule == 2:
+                if self.case == EMPTY_MIDWAY and len(platoons) <= self.objective_length:
+                    self.case = IDLE
+                elif self.case == EMPTY and len(platoons) <= 0:
+                    self.case = IDLE
+                elif self.case == EMPTY_OTHER_MIDWAY and len(opposite_platoons) <= self.objective_length:
+                    self.case = IDLE
+                elif self.case == EMPTY_OTHER and len(opposite_platoons) <= 0:
+                    self.case = IDLE
+                elif self.case == WAIT_FOR_VEHICLE and len(platoons) > 0:
+                    self.case = IDLE
+                elif self.case == WAIT_FOR_OTHER_VEHICLE and len(opposite_platoons) > 0:
+                    self.case = IDLE
+                 
+                if self.case == IDLE:
+                    self.congestion = 'idle'
+                    self.opposite_congestion = 'idle'
                         
-                elif len(platoons) > 1 and len(opposite_platoons) > 1:
-                    # sort according to avg. waiting time, descending
-                    platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
-                    opposite_platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
-                    
-                    distance = self.distance_to_sensor(position=platoons[0][-1].position)
-                    speed = platoons[0][-1].full_speed
-                    
-                    opposite_distance = self.distance_to_sensor(position=platoons[0][-1].position)
-                    opposite_speed = opposite_platoons[0][0].full_speed
+                    if len(opposite_platoons) <= 0 and len(platoons) > 0:
+                        self.case = WAIT_FOR_OTHER_VEHICLE
+                        
+                        self.congestion = 'waiting'
+                        self.opposite_congestion = 'waiting'
+                        
+                    elif len(platoons) <= 0 and len(opposite_platoons) > 0:
+                        self.case = WAIT_FOR_VEHICLE
+                        
+                        self.congestion = 'waiting'
+                        self.opposite_congestion = 'waiting'
 
-                    cum_metric = opposite_distance/opposite_speed + sum([metric[1] for metric in platoon_metrics])
-                    cum_metric /= len(platoons)
-                    opposite_cum_metric = distance/speed + sum([metric[1] for metric in opposite_platoon_metrics])
-                    opposite_cum_metric /= len(opposite_platoons)
+                    elif len(platoons) == 1 and len(opposite_platoons) == 1:
+                        distance = self.distance_to_sensor(position=vehicles[-1].position)
+                        speed = vehicles[-1].full_speed
 
-                    if cum_metric >= opposite_cum_metric:
-                        self.case = EMPTY_MIDWAY
-                        self.objective_length = len(platoons)-1
-                        self.vehicle_to_leave = platoons[0][-1]
-                    else:
-                        self.case = EMPTY_OTHER_MIDWAY
-                        self.objective_length = len(opposite_platoons)-1
-                        self.vehicle_to_leave = opposite_platoons[0][-1]
+                        opposite_distance = self.distance_to_sensor(position=opposite_vehicles[-1].position)
+                        opposite_speed = opposite_vehicles[-1].full_speed
+
+                        cum_metric = platoon_metrics[0][1] + opposite_distance/opposite_speed
+                        opposite_cum_metric = opposite_platoon_metrics[0][1] + distance/speed
+                        
+                        self.congestion = str(round(sum([metric[1] for metric in platoon_metrics]),1)) + '/' + str(len(platoons)) + '+' + str(round(opposite_distance)) + '/' + str(opposite_speed)
+                        self.opposite_congestion = str(round(sum([metric[1] for metric in opposite_platoon_metrics]),1)) + '/' + str(len(opposite_platoons)) + '+' + str(round(distance)) + '/' + str(speed)
+
+                        if cum_metric >= opposite_cum_metric:
+                            self.service = 1
+                        else:
+                            self.service = 0
+
+                    elif len(platoons) > 1 and len(opposite_platoons) > 1:
+                        distance = self.distance_to_sensor(position=platoons[0][-1].position)
+                        speed = platoons[0][-1].full_speed
+
+                        opposite_distance = self.distance_to_sensor(position=opposite_platoons[0][-1].position)
+                        opposite_speed = opposite_platoons[0][0].full_speed
+
+                        cum_metric = opposite_distance/opposite_speed + sum([metric[1] for metric in platoon_metrics])/len(platoons)
+                        #cum_metric /= len(platoons)
+                        opposite_cum_metric = distance/speed + sum([metric[1] for metric in opposite_platoon_metrics])/len(platoons)
+                        #opposite_cum_metric /= len(opposite_platoons)
+                        
+                        self.congestion = '1/' + str(len(platoons)) + '(' + str(round(sum([metric[1] for metric in platoon_metrics]),1)) + '+' + str(round(opposite_distance)) + '/' + str(opposite_speed) + ')'
+                        self.opposite_congestion = '1/' + str(len(opposite_platoons)) + '(' + str(round(sum([metric[1] for metric in opposite_platoon_metrics]),1)) + '+' + str(round(distance)) + '/' + str(speed) + ')'
+                        
+                        if cum_metric >= opposite_cum_metric:
+                            self.case = EMPTY_MIDWAY
+                            self.objective_length = len(platoons)-1
+                        else:
+                            self.case = EMPTY_OTHER_MIDWAY
+                            self.objective_length = len(opposite_platoons)-1
                     
+            elif self.rule == 3:
+                if self.case == EMPTY_MIDWAY or self.case == EMPTY:
+                    if len(platoons) <= 0 or True not in [self.vehicle_to_leave in platoon for platoon in platoons]:
+                        self.case = IDLE
+                elif self.case == EMPTY_OTHER_MIDWAY or self.case == EMPTY_OTHER:
+                    if len(opposite_platoons) <= 0 or True not in [self.vehicle_to_leave in platoon for platoon in opposite_platoons]:
+                        self.case = IDLE
+                elif self.case == WAIT_FOR_VEHICLE and len(platoons) > 0:
+                    self.case = IDLE
+                elif self.case == WAIT_FOR_OTHER_VEHICLE and len(opposite_platoons) > 0:
+                    self.case = IDLE
+                        
+                if self.case == IDLE:
+                    self.congestion = 'idle'
+                    self.opposite_congestion = 'idle'
+                        
+                    if len(opposite_platoons) <= 0 and len(platoons) > 0:
+                        self.case = WAIT_FOR_OTHER_VEHICLE
+                        
+                        self.congestion = 'waiting'
+                        self.opposite_congestion = 'waiting'
+
+                    elif len(platoons) <= 0 and len(opposite_platoons) > 0:
+                        self.case = WAIT_FOR_VEHICLE
+                        
+                        self.congestion = 'waiting'
+                        self.opposite_congestion = 'waiting'
+
+                    elif len(platoons) == 1 and len(opposite_platoons) == 1:
+                        distance = self.distance_to_sensor(position=vehicles[-1].position)
+                        speed = vehicles[-1].full_speed
+
+                        opposite_distance = self.distance_to_sensor(position=opposite_vehicles[-1].position)
+                        opposite_speed = opposite_vehicles[0].full_speed
+
+                        cum_metric = platoon_metrics[0][1] + opposite_distance/opposite_speed
+                        opposite_cum_metric = opposite_platoon_metrics[0][1] + distance/speed
+                        
+                        self.congestion = '1/' + str(len(platoons)) + '(' + str(round(sum([metric[1] for metric in platoon_metrics]),1)) + '+' + str(round(opposite_distance)) + '/' + str(opposite_speed) + ')'
+                        self.opposite_congestion = '1/' + str(len(opposite_platoons)) + '(' + str(round(sum([metric[1] for metric in opposite_platoon_metrics]),1)) + '+' + str(round(distance)) + '/' + str(speed) + ')'
+
+                        if cum_metric >= opposite_cum_metric:
+                            self.service = 1
+                        else:
+                            self.service = 0
+
+                    elif len(platoons) > 1 and len(opposite_platoons) > 1:
+                        distance = self.distance_to_sensor(position=platoons[0][-1].position)
+                        speed = platoons[0][-1].full_speed
+
+                        opposite_distance = self.distance_to_sensor(position=opposite_platoons[0][-1].position)
+                        opposite_speed = opposite_platoons[0][0].full_speed
+
+                        cum_metric = opposite_distance/opposite_speed + sum([metric[1] for metric in platoon_metrics])/len(platoons)
+                        #cum_metric /= len(platoons)
+                        opposite_cum_metric = distance/speed + sum([metric[1] for metric in opposite_platoon_metrics])/len(platoons)
+                        #opposite_cum_metric /= len(opposite_platoons)
+                        
+                        self.congestion = '1/' + str(len(platoons)) + '(' + str(round(sum([metric[1] for metric in platoon_metrics]),1)) + '+' + str(round(opposite_distance)) + '/' + str(opposite_speed) + ')'
+                        self.opposite_congestion = '1/' + str(len(opposite_platoons)) + '(' + str(round(sum([metric[1] for metric in opposite_platoon_metrics]),1)) + '+' + str(round(distance)) + '/' + str(speed) + ')'
+
+                        if cum_metric >= opposite_cum_metric:
+                            self.case = EMPTY_MIDWAY
+                            self.objective_length = len(platoons)-1
+                            self.vehicle_to_leave = platoons[0][-1]
+                        else:
+                            self.case = EMPTY_OTHER_MIDWAY
+                            self.objective_length = len(opposite_platoons)-1
+                            self.vehicle_to_leave = opposite_platoons[0][-1]
+                
         self.update_service()
         
     def update_service(self):
-        if self.case in [EMPTY, EMPTY_MIDWAY]:
+        if self.case in [EMPTY, EMPTY_MIDWAY, WAIT_FOR_OTHER_VEHICLE]:
             self.service = 1
-        elif self.case in [EMPTY_OTHER, EMPTY_OTHER_MIDWAY]:
+        elif self.case in [EMPTY_OTHER, EMPTY_OTHER_MIDWAY, WAIT_FOR_VEHICLE]:
             self.service = 0
     
     def saturation_rate(self, delta_t=0.):
