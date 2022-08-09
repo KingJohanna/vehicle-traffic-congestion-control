@@ -231,6 +231,7 @@ class AdaptiveTrafficLight(TrafficLight):
         self.sensor_depth = 0
         self.rule = 0
         self.range = 50
+        self.vehicle_to_leave = None
         
     def initialize(self, sensor_depth: int, rule=1):
         self.sensor_depth = sensor_depth
@@ -244,6 +245,7 @@ class AdaptiveTrafficLight(TrafficLight):
         queue_2 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, queue_2))
         opposite_queue_1 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_queue_1))
         opposite_queue_2 = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_queue_2))
+        
         queue_1.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
         queue_2.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
         opposite_queue_1.sort(key=lambda vehicle: self.distance_to_sensor(position=vehicle.position))
@@ -272,8 +274,8 @@ class AdaptiveTrafficLight(TrafficLight):
         else:
             opposite_vehicles += opposite_queue_2
            
-        vehicles = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, vehicles))
-        opposite_vehicles = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_vehicles))
+        #vehicles = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, vehicles))
+        #opposite_vehicles = list(filter(lambda vehicle: self.distance_to_sensor(position=vehicle.position) < self.range, opposite_vehicles))
         
         if self.rule == 1:
             queue_length = len(vehicles)
@@ -350,25 +352,23 @@ class AdaptiveTrafficLight(TrafficLight):
                 
             #print(self.time, platoon_metrics, opposite_platoon_metrics)
             
-            if self.case == EMPTY_MIDWAY:
-                if len(platoons) <= self.objective_length:
+            if self.case == EMPTY_MIDWAY or self.case == EMPTY:
+                if len(platoons) <= 0 or True not in [self.vehicle_to_leave in platoon for platoon in platoons]:
                     self.case = WAIT
-            elif self.case == EMPTY_OTHER_MIDWAY:
-                if len(opposite_platoons) <= self.objective_length:
-                    self.case = WAIT
-            elif self.case == EMPTY:
-                if len(platoons) <= 0:
-                    self.case = WAIT
-            elif self.case == EMPTY_OTHER:
-                if len(opposite_platoons) <= 0:
+            elif self.case == EMPTY_OTHER_MIDWAY or self.case == EMPTY_OTHER:
+                if len(opposite_platoons) <= 0 or True not in [self.vehicle_to_leave in platoon for platoon in opposite_platoons]:
                     self.case = WAIT
                     
             if self.case == WAIT:
-                if len(opposite_platoons) <= 0:
+                if len(opposite_platoons) <= 0 and len(platoons) > 0:
                     self.case = EMPTY
+                    platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
+                    self.vehicle_to_leave = platoons[0][-1]
                     
-                elif len(platoons) <= 0:
+                elif len(platoons) <= 0 and len(opposite_platoons) > 0:
                     self.case = EMPTY_OTHER
+                    opposite_platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
+                    self.vehicle_to_leave = opposite_platoons[0][-1]
 
                 elif len(platoons) == 1 and len(opposite_platoons) == 1:
                     distance = self.distance_to_sensor(position=vehicles[-1].position)
@@ -382,10 +382,16 @@ class AdaptiveTrafficLight(TrafficLight):
                     
                     if cum_metric >= opposite_cum_metric:
                         self.case = EMPTY
+                        self.vehicle_to_leave = platoons[0][-1]
                     else:
                         self.case = EMPTY_OTHER
+                        self.vehicle_to_leave = opposite_platoons[0][-1]
                         
                 elif len(platoons) > 1 and len(opposite_platoons) > 1:
+                    # sort according to avg. waiting time, descending
+                    platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
+                    opposite_platoons.sort(key=lambda platoon: sum([vehicle.wait_time for vehicle in platoon])/len(platoon), reverse=True)
+                    
                     distance = self.distance_to_sensor(position=platoons[0][-1].position)
                     speed = platoons[0][-1].full_speed
                     
@@ -400,9 +406,11 @@ class AdaptiveTrafficLight(TrafficLight):
                     if cum_metric >= opposite_cum_metric:
                         self.case = EMPTY_MIDWAY
                         self.objective_length = len(platoons)-1
+                        self.vehicle_to_leave = platoons[0][-1]
                     else:
                         self.case = EMPTY_OTHER_MIDWAY
                         self.objective_length = len(opposite_platoons)-1
+                        self.vehicle_to_leave = opposite_platoons[0][-1]
                     
         self.update_service()
         

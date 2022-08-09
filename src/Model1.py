@@ -46,11 +46,14 @@ class PoissonQueueSimulator(BaseModel.QueueSimulator):
         arriving_vehicles = []
         departing_vehicle = None
         
-        if self.random_variable < self.arrival_probability(): # TODO fix for non-homogeneous arrivals
+        if self.random_variable < self.arrival_probability():
             platoon_size = np.random.choice(range(1,len(self.queue.platoon_size_distribution)+1), p=self.queue.platoon_size_distribution)
             
             for i in range(platoon_size):
                 arriving_vehicles += [self.generate_vehicle()]
+                
+                if platoon_size > 1:
+                    vehicle = arriving_vehicles[-1]
             
             self.arrivals += [self.arrivals[-1]+platoon_size]
             self.random_variable = random.random()

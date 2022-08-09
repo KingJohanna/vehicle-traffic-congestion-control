@@ -1,6 +1,6 @@
 import numpy as np
 from pathlib import Path
-import pickle
+import dill as pickle
 from matplotlib.ticker import (MultipleLocator,
                                FormatStrFormatter,
                                AutoMinorLocator)
@@ -121,7 +121,7 @@ class Evaluator:
             
             
     def plot_avg_wait_times_over_time(self, plt, fig_size: (float, float)):
-        fig,ax = plt.subplots(figsize=fig_size, dpi=90)
+        fig,ax = plt.subplots(figsize=fig_size, dpi=300)
         t = np.arange(0.,self.end_time,self.delta_t)
 
         ax.plot(t,self.average_over_time["avg_wait_time"])
@@ -132,7 +132,7 @@ class Evaluator:
         return fig,ax
     
     def plot_avg_clearance_rate(self, plt, grid_ind, fig_size: (float, float)):
-        fig, ax = plt.subplots(figsize=fig_size, dpi=90)
+        fig, ax = plt.subplots(figsize=fig_size, dpi=300)
         
         t = np.arange(0.,self.end_time,self.delta_t)
         
@@ -146,7 +146,7 @@ class Evaluator:
         return fig, ax
     
     def plot_avg_arrivals_on_green_rate(self, plt, grid_ind, fig_size: (float, float)):
-        fig,ax = plt.subplots(figsize=fig_size, dpi=90)
+        fig,ax = plt.subplots(figsize=fig_size, dpi=300)
         t = np.arange(0.,self.end_time,self.delta_t)
 
         ax.plot(t,self.average_over_time[grid_ind]["arrivals_on_green_rate"])
@@ -157,7 +157,7 @@ class Evaluator:
         return fig,ax
         
     def plot_queue_lengths(self, plt, grid_ind: (int, int), fig_size: (float, float)):
-        fig,axs = plt.subplots(4, figsize=fig_size, dpi=90, sharex=True)
+        fig,axs = plt.subplots(4, figsize=fig_size, dpi=300, sharex=True)
         t = np.arange(0.,self.end_time,self.delta_t)
 
         axs[0].plot(t,self.average_over_time[grid_ind]["N"]["queue_length"])
@@ -176,15 +176,15 @@ class Evaluator:
         
         return fig,axs
     
-    def save_to_file(self, file_name: str, output_destination="../data/evals/") -> None:
-        dim = str(self.network.grid_dimensions[0]+1)+"x"+str(self.network.grid_dimensions[1]+1)
-        f = open(Path(output_destination) / dim / file_name,"wb")
+    def save_to_file(self, file_name: str, output_destination="../../data/evals/") -> None:
+        f = open(Path(output_destination) / file_name,"xb")
         pickle.dump(self,f)
         f.close()
         
-    def read_file(self, file_name: str, grid_dim: str, destination="../data/evals/"):
-        with open(Path(destination) / grid_dim / file_name, 'rb') as f:
-            return pickle.load(f)
+    def read_file(self, file_name, destination):
+        with open(Path(destination) / file_name, 'rb') as in_strm:
+            datastruct = pickle.load(in_strm)
+            return datastruct
             
 class MultiEvaluator:
     def __init__(self):
@@ -198,7 +198,7 @@ class MultiEvaluator:
         self.variable = variable
     
     def plot_avg_wait_times(self, plt, fig_size: (float, float)):
-        fig,ax = plt.subplots(figsize=fig_size, dpi=90)
+        fig,ax = plt.subplots(figsize=fig_size, dpi=300)
         
         avg_wait_times = []
         
@@ -213,7 +213,7 @@ class MultiEvaluator:
         return fig,ax
         
     def plot_queue_lengths(self, plt, grid_ind: (int, int), fig_size: (float, float)):
-        fig,axs = plt.subplots(4, figsize=fig_size, dpi=90, sharex=True)
+        fig,axs = plt.subplots(4, figsize=fig_size, dpi=300, sharex=True)
         
         for label,evaluator in self.evaluators.items():
             t = np.arange(0., evaluator.end_time, evaluator.delta_t)
@@ -260,7 +260,7 @@ class MultiEvaluator:
             
         t = np.arange(0., evaluator.end_time, evaluator.delta_t)
         
-        fig,axs = plt.subplots(2, figsize=fig_size, dpi=90, sharex=True)
+        fig,axs = plt.subplots(2, figsize=fig_size, dpi=300, sharex=True)
 
         labels = list(self.evaluators.keys())
         
@@ -306,7 +306,7 @@ class MultiEvaluator:
         
         t = np.arange(0., evaluator.end_time, evaluator.delta_t)
         
-        fig, ((ax1, ax2),(ax3, ax4)) = plt.subplots(2,2, figsize=fig_size, dpi=90, sharex='col')
+        fig, ((ax1, ax2),(ax3, ax4)) = plt.subplots(2,2, figsize=fig_size, dpi=300, sharex='col')
 
         labels = list(self.evaluators.keys())
         
@@ -348,7 +348,7 @@ class MultiEvaluator:
         return fig,((ax1,ax2),(ax3,ax4))
     
     def compare_metrics(self, plt, x_axis: str, y_axis: str, grid_ind: (int, int), fig_size: (float, float), ):
-        fig,ax = plt.subplots(figsize=fig_size, dpi=90)
+        fig,ax = plt.subplots(figsize=fig_size, dpi=300)
         
         for label,evaluator in self.evaluators.items():
             x = evaluator.average[grid_ind][x_axis]
@@ -363,7 +363,7 @@ class MultiEvaluator:
         return fig,ax
     
     def save_to_file(self, file_name: str, output_destination="../data/evals/multi/") -> None:
-        f = open(Path(output_destination) / file_name,"wb")
+        f = open(Path(output_destination) / file_name,"xb")
         pickle.dump(self,f)
         f.close()
         
